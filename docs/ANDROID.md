@@ -21,15 +21,59 @@ React + Vite ──► dist/ ──► Capacitor ──► Android WebView ─�
 | Android SDK | Platform 36, Build-Tools 36 | `compileSdk`/`targetSdk` are 36 |
 | Min Android | 7.0 (API 24) | `minSdkVersion = 24` |
 
-Set `JAVA_HOME` to a JDK 21 install and make sure `ANDROID_HOME` points at the
-SDK (Android Studio does this for you; a `local.properties` with
-`sdk.dir=/path/to/sdk` inside `android/` also works and is git-ignored).
+### Pointing the build at JDK 21
+
+Gradle uses `JAVA_HOME`, **not** whatever `java` happens to be on your PATH —
+and version managers (SDKMAN, asdf, conda) routinely put a newer JDK there.
+If `java -version` shows 22 or later, set it explicitly:
+
+```bash
+export JAVA_HOME=$(/usr/libexec/java_home -v 21)   # macOS
+```
+
+Make it permanent in `~/.zshrc`, or with SDKMAN: `sdk default java 21.0.7-tem`.
+`/usr/libexec/java_home -V` lists every JDK macOS knows about. Android Studio
+also bundles a JDK 21 at
+`/Applications/Android Studio.app/Contents/jbr/Contents/Home`, which works fine
+as a `JAVA_HOME`.
+
+### Pointing the build at the SDK
+
+Installing Android Studio is not enough — you must **run it once** so the setup
+wizard downloads the SDK (it lands in `~/Library/Android/sdk`). Until then
+Gradle fails with `SDK location not found`.
+
+The SDK must contain **platform `android-36`** specifically — that is what
+`compileSdkVersion`/`targetSdkVersion` in `android/variables.gradle` ask for.
+A newer platform (e.g. `android-37`) does **not** satisfy it; Gradle fails with
+`failed to find target with hash string 'android-36'`. Install it with:
+
+```bash
+sdkmanager "platforms;android-36" "build-tools;36.0.0" "platform-tools"
+```
+
+If you have more than one SDK on the machine (Android Studio's at
+`~/Library/Android/sdk` and a Homebrew `android-commandlinetools` at
+`/usr/local/share/android-commandlinetools` are a common pair), point
+`sdk.dir` at whichever one actually has `platforms/android-36`.
+
+Then either export the path:
+
+```bash
+export ANDROID_HOME=$HOME/Library/Android/sdk
+```
+
+…or create `android/local.properties` (git-ignored):
+
+```properties
+sdk.dir=/Users/you/Library/Android/sdk
+```
 
 Verify before building:
 
 ```bash
-java -version   # expect 21.x
-echo $ANDROID_HOME
+$JAVA_HOME/bin/java -version   # expect 21.x
+ls $ANDROID_HOME/platforms     # expect android-36
 ```
 
 ## Installation
@@ -121,6 +165,20 @@ silently stays unsigned, so a fresh clone needs no secrets to compile.
 
 Never commit `keystore.properties`, the keystore itself, or these passwords.
 
+## Testing on a device without a keystore
+
+`assembleDebug` produces an APK signed with Android's auto-generated debug
+key, so it installs and runs immediately. That is the fastest route to
+on-device testing — you do not need to set up signing first.
+
+```bash
+npm run build && npx cap sync android
+cd android && ./gradlew assembleDebug
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+```
+
+Debug builds are also WebView-debuggable from `chrome://inspect`.
+
 ## Installing the APK on a phone
 
 Via USB, with developer options and USB debugging enabled:
@@ -146,6 +204,13 @@ Only three integration points exist, all under `src/services/native/`:
 | `fileExport.ts` | `<a download>` | WebViews ignore download links; uses Filesystem + Share instead |
 | `androidBackButton.ts` | — | Maps the hardware Back key onto router history |
 | `platform.ts` | — | Detects native at runtime |
+
+Plus one native file: `MainActivity.java` applies the system-bar insets as
+padding. Android 15+ forces edge-to-edge for `targetSdk` 35 and above, so
+without it the WebView draws behind the status bar and the app header sits
+under the clock. This **cannot** be fixed in CSS: on Android
+`env(safe-area-inset-top)` reports only display cutouts, not the status bar, so
+it stays 0 on most phones. Verified on a Galaxy A36 (Android 16).
 
 Everything else is untouched. The `Repository` interface, IndexedDB storage,
 calorie maths, charts, reminder scheduling logic and all UI are shared verbatim
@@ -174,6 +239,19 @@ needs no storage permission.
 
 If you disable reminders entirely, all four notification permissions can be
 removed by dropping `@capacitor/local-notifications`.
+
+## Verified on device
+
+Tested on a Samsung Galaxy A36 (Android 16, API 36) via `adb install`:
+
+- App launches from the drawer as **FitTrack**; no crash on cold start
+- Dashboard, Food and Analytics render correctly; empty states intact
+- Bottom-tab navigation and `HashRouter` routing work
+- Hardware Back navigates the route history (Analytics → Food) without exiting
+- Status bar and gesture bar both clear the content after the insets fix
+
+Still untested on hardware: notification delivery at a scheduled time, the
+export share sheet, and data persistence across a force-stop.
 
 ## Known limitations
 
@@ -215,8 +293,9 @@ removed by dropping `@capacitor/local-notifications`.
 
 | Symptom | Cause |
 | --- | --- |
-| `Unsupported class file major version` | JDK is newer than 21 — point `JAVA_HOME` at a JDK 21 |
-| `SDK location not found` | Set `ANDROID_HOME`, or add `sdk.dir=` to `android/local.properties` |
+| `Unsupported class file major version 69` | JDK 25 is being used. 69=Java 25, 68=Java 24; Gradle 8.14.3 accepts up to 24. Set `JAVA_HOME` to JDK 21 — note Gradle ignores your PATH `java` |
+| `Unsupported class file major version` (other) | Same cause, different JDK — point `JAVA_HOME` at a JDK 21 |
+| `SDK location not found` | Android Studio installed but never launched, so no SDK exists. Run it once, then set `ANDROID_HOME` or `android/local.properties` |
 | Blank white screen | `dist/` wasn't synced — run `npm run android:sync` |
 | Web changes not appearing | Same: Capacitor copies `dist/` only on `cap sync` |
 | `INSTALL_PARSE_FAILED_NO_CERTIFICATES` | The release APK is unsigned — configure `keystore.properties` |

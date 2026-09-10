@@ -31,7 +31,13 @@ export function AppLayout({ children }: { children: ReactNode }) {
       {/* Centred column keeps the phone layout intact on desktop. */}
       <main
         className="mx-auto w-full max-w-[560px]"
-        style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 8.5rem)' }}
+        style={{
+          // Android 15+ (targetSdk 36) draws the WebView edge-to-edge, so
+          // content would sit under the status bar. The inset is 0 in a normal
+          // browser, leaving the web layout unchanged.
+          paddingTop: 'env(safe-area-inset-top)',
+          paddingBottom: 'calc(env(safe-area-inset-bottom) + 8.5rem)',
+        }}
         key={pathname}
       >
         <div className="animate-fade-in">{children}</div>
