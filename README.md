@@ -27,9 +27,9 @@ npm run build      # production build into dist/
 | History | Month calendar with per-day detail, editing and deletion |
 | Profile | Personal info, targets, units, theme, weight history, export/import, reset |
 
-## Android
+## Android & iOS
 
-The same codebase ships as an Android APK via Capacitor — a packaging layer,
+The same codebase ships as an Android APK and an iOS app via Capacitor — a packaging layer,
 not a fork. `npm run build` output is loaded from the APK's assets, so the web
 and PWA builds are unaffected and browsers download no Capacitor code.
 
@@ -39,9 +39,17 @@ npm run android:open    # Android Studio
 npm run android:apk     # signed release APK
 ```
 
+```bash
+npm run ios:sync        # same flow for iOS
+npm run ios:open        # Xcode
+```
+
 Only four small files under `src/services/native/` are platform-specific
-(notifications, file export, back button, platform detection). Setup, signing
-and known limitations: [docs/ANDROID.md](docs/ANDROID.md).
+(notifications, file export, back button, platform detection), and only the
+back button is Android-only. Setup, signing and known limitations:
+[docs/ANDROID.md](docs/ANDROID.md) · [docs/IOS.md](docs/IOS.md).
+
+Android is built and verified on a device; iOS is scaffolded but needs Xcode.
 
 ## Architecture
 

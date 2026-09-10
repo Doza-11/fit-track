@@ -273,13 +273,16 @@ export share sheet, and data persistence across a force-stop.
   as a plain white square. Fix by adding a white-on-transparent silhouette at
   `android/app/src/main/res/drawable/ic_stat_icon.xml` and referencing it via
   `plugins.LocalNotifications.smallIcon` in `capacitor.config.ts`.
-- **The service worker is left enabled inside the WebView.** It is redundant
-  there — assets are already local — and it duplicates ~425 KB into Cache
-  Storage. It was kept because removing it risks the browser PWA and could not
-  be tested on a device here. **Watch for this first if the app shows stale
-  content after an APK update.** The minimal fix is to stop registering it on
-  native: set `injectRegister: null` in the `VitePWA` options and register
-  manually in `src/main.tsx` behind `if (!isNative())`.
+- **The service worker is disabled inside the WebView** (browsers keep it, so
+  the PWA is unaffected). It was originally left on, and it immediately caused
+  the exact failure predicted: after an APK update the WebView kept serving the
+  previous bundle from its precache, so a theme change appeared only partially.
+  `src/main.tsx` now registers it in browsers only, and on native it unregisters
+  any worker and clears the caches left by an older build, so upgrades
+  self-heal. Note that an app installed *before* this change may need one clean
+  reinstall (`adb uninstall` then `adb install`) to drop the old cache —
+  **that wipes on-device data**, so export first.
+
 - **Back button does not close bottom sheets.** Pressing Back with a sheet open
   navigates the route underneath instead of dismissing the sheet. Handling that
   would mean touching every sheet, which was out of scope for a packaging pass.
