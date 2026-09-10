@@ -226,6 +226,81 @@ describe('activity, hydration and praise', () => {
   })
 })
 
+describe('goal-based appreciation', () => {
+  const twoMeals = (kcal: number, protein = 60) => [
+    meal('breakfast', Math.round(kcal * 0.4), Math.round(protein * 0.4)),
+    meal('lunch', Math.round(kcal * 0.6), Math.round(protein * 0.6)),
+  ]
+
+  it('congratulates a steady deficit when the goal is to lose', () => {
+    // 1,800 of 2,150 — under target but not under-eating.
+    const p = plan(summary({ meals: twoMeals(1800, 120) }))
+    expect(kinds(p)).toContain('goal_on_track')
+  })
+
+  it('does not congratulate a day that is far too low', () => {
+    expect(kinds(plan(summary({ meals: twoMeals(700, 40) })))).not.toContain('goal_on_track')
+  })
+
+  it('does not congratulate a day over target', () => {
+    expect(kinds(plan(summary({ meals: twoMeals(2600, 130) })))).not.toContain('goal_on_track')
+  })
+
+  it('waits for a reasonably complete day', () => {
+    const oneMeal = summary({ meals: [meal('lunch', 1800, 120)] })
+    expect(kinds(plan(oneMeal))).not.toContain('goal_on_track')
+  })
+
+  it('judges a gain goal on hitting calories and protein, not a deficit', () => {
+    const gaining: UserProfile = {
+      ...profile, goal: { type: 'gain', weeklyRateKg: 0.35 },
+    }
+    const onPlan = planSmartNotifications({
+      summary: summary({ meals: twoMeals(2200, 130) }), profile: gaining,
+      recentAvgProtein: 120, recentAvgSteps: 8000, now: morning,
+    })
+    expect(kinds(onPlan)).toContain('goal_on_track')
+
+    // The same day would be praised under "lose" but is a shortfall when gaining.
+    const short = planSmartNotifications({
+      summary: summary({ meals: twoMeals(1700, 120) }), profile: gaining,
+      recentAvgProtein: 120, recentAvgSteps: 8000, now: morning,
+    })
+    expect(kinds(short)).not.toContain('goal_on_track')
+  })
+
+  it('does not congratulate and nudge about the same day at once', () => {
+    const p = kinds(plan(summary({ meals: twoMeals(1800, 120) })))
+    expect(p.includes('goal_on_track') && p.includes('under_eating')).toBe(false)
+  })
+})
+
+describe('over-target activity suggestion', () => {
+  it('offers an optional walk when the day ran over', () => {
+    const over = summary({ meals: [meal('lunch', 2700, 120)] })
+    const n = plan(over).find((x) => x.dedupeKey.endsWith('move'))
+    expect(n).toBeDefined()
+    expect(n!.body).toMatch(/optional/i)
+  })
+
+  it('never frames it as working the food off', () => {
+    const over = summary({ meals: [meal('lunch', 2700, 120)] })
+    const n = plan(over).find((x) => x.dedupeKey.endsWith('move'))!
+    expect(`${n.title} ${n.body}`).not.toMatch(/burn|off|make up|compensate|earn/i)
+  })
+
+  it('stays quiet when a workout is already logged', () => {
+    const over = summary({ meals: [meal('lunch', 2700, 120)], workouts: [workout] })
+    expect(kinds(plan(over))).not.toContain('move')
+  })
+
+  it('ignores a trivial overshoot', () => {
+    const barely = summary({ meals: [meal('lunch', 2200, 120)] })
+    const n = plan(barely).find((x) => x.dedupeKey.endsWith('move'))
+    expect(n?.title ?? '').not.toMatch(/above today/)
+  })
+})
+
 describe('restraint', () => {
   /** A deliberately bad day that trips as many rules as possible. */
   const messyDay = summary({

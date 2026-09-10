@@ -20,7 +20,9 @@ import {
   ftInToCm, kgToLb, lbToKg, recommendTargets,
 } from '@/utils/calculations'
 import { formatDate, formatTime12h } from '@/utils/date'
-import { notifications, REMINDER_COPY } from '@/services/notifications'
+import {
+  notifications, sendTestNotification, REMINDER_COPY,
+} from '@/services/notifications'
 import { saveExport } from '@/services/native/fileExport'
 import { DEFAULT_NOTIFICATION_PREFS } from '@/services/smartNotifications'
 import {
@@ -347,10 +349,77 @@ function RemindersSection() {
     else if (result === 'denied') toast('Notifications blocked in browser settings')
   }
 
-  const preview = showPreview ? previewTodaysNotifications() : []
+  const preview = previewTodaysNotifications()
+  const lastError = notifications.getLastError()
+
+  const runTest = async () => {
+    try {
+      await sendTestNotification()
+      toast('Test notification sent')
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Could not send a test notification')
+    }
+  }
+
+  const permissionLabel = {
+    granted: 'Allowed',
+    denied: 'Blocked in system settings',
+    default: 'Not yet requested',
+    unsupported: 'Not supported here',
+  }[permission]
 
   return (
     <>
+      {/* Diagnostics first: when reminders do not arrive, this is the screen
+          that has to explain why. */}
+      <Card className="mb-3">
+        <h3 className="text-[14px] font-semibold mb-2.5">Delivery status</h3>
+        <div className="space-y-1.5 text-[13px]">
+          <div className="flex justify-between gap-3">
+            <span className="text-muted">Permission</span>
+            <span className={`font-semibold text-right ${permission === 'granted' ? 'text-success' : 'text-burn'}`}>
+              {permissionLabel}
+            </span>
+          </div>
+          <div className="flex justify-between gap-3">
+            <span className="text-muted">Reminders switched on</span>
+            <span className="font-semibold tabular-nums">{reminders.filter((r) => r.enabled).length}</span>
+          </div>
+          <div className="flex justify-between gap-3">
+            <span className="text-muted">Queued for the rest of today</span>
+            <span className="font-semibold tabular-nums">{preview.length}</span>
+          </div>
+          <div className="flex justify-between gap-3">
+            <span className="text-muted">Delivered by</span>
+            <span className="font-semibold">{notifications.name === 'capacitor' ? 'Android system' : notifications.name}</span>
+          </div>
+        </div>
+
+        {lastError && (
+          <p className="text-[12px] text-danger bg-danger/10 rounded-xl px-3 py-2.5 mt-3 leading-snug">
+            Last scheduling error: {lastError}
+          </p>
+        )}
+
+        <button className="btn-ghost w-full mt-3" onClick={() => void runTest()}>
+          Send a test notification
+        </button>
+        {permission === 'default' && (
+          <button className="btn-primary w-full mt-2" onClick={() => void request()}>
+            Allow notifications
+          </button>
+        )}
+        {permission === 'denied' && (
+          // Once denied, Android will not show the prompt again — only the
+          // system settings screen can undo it, so say that plainly instead of
+          // offering a button that cannot work.
+          <p className="text-[12.5px] text-muted leading-relaxed mt-3">
+            Android will not ask again. To turn them back on: <strong className="text-ink">Settings →
+            Apps → FitTrack → Notifications</strong>, then come back and send a test.
+          </p>
+        )}
+      </Card>
+
       {permission === 'unsupported' ? (
         <Card className="mb-3 border-burn/30 bg-burn/[0.06]">
           <p className="text-[13px] text-muted leading-relaxed">

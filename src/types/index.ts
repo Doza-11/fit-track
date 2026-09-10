@@ -293,6 +293,7 @@ export type SmartNotificationKind =
   | 'hydration'
   | 'move'
   | 'good_day'
+  | 'goal_on_track'
 
 /**
  * A condition re-checked immediately before a notification is shown, so a

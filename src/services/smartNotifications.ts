@@ -351,8 +351,81 @@ const goodDay: Rule = ({ summary }) => {
   }
 }
 
+/**
+ * Appreciation for actually following the plan, judged against the user's own
+ * goal rather than a generic target.
+ *
+ * This is the counterpart to the nudges: someone losing weight who lands in a
+ * sensible deficit should hear about it, and it should not require a logged
+ * workout the way `good_day` does.
+ */
+const goalOnTrack: Rule = ({ summary, profile }) => {
+  if (!summary.hasAnyEntry) return null
+  // Needs a reasonably complete day before congratulating anyone.
+  if (summary.meals.filter((m) => m.items.length > 0).length < 2) return null
+
+  const target = summary.calorieTarget
+  const consumed = summary.caloriesConsumed
+  const goal = profile.goal.type
+  const ratio = consumed / target
+
+  // "On plan" means something different per goal.
+  let earned = false
+  let line = ''
+  if (goal === 'lose') {
+    // Comfortably under target, but not so far under that it's under-eating.
+    earned = ratio >= 0.75 && ratio <= 1.0
+    line = `You finished the day at about ${Math.round(consumed).toLocaleString()} kcal against a ${target.toLocaleString()} target — a steady deficit, which is exactly the pace you set.`
+  } else if (goal === 'gain' || goal === 'build_muscle') {
+    const proteinOk = summary.macroTargets.protein <= 0
+      || summary.macros.protein >= summary.macroTargets.protein * 0.8
+    earned = ratio >= 0.95 && proteinOk
+    line = `You hit about ${Math.round(consumed).toLocaleString()} kcal with ${Math.round(summary.macros.protein)}g of protein — a solid day for building.`
+  } else {
+    earned = Math.abs(consumed - target) <= target * 0.08
+    line = `You landed within a hair of your ${target.toLocaleString()} kcal target. That consistency is the whole game.`
+  }
+  if (!earned) return null
+
+  return {
+    kind: 'goal_on_track',
+    time: CHECKPOINT.goodDay,
+    title: '🎯 On track today',
+    body: line,
+    priority: 58,
+    relevance: { type: 'always' },
+  }
+}
+
+/**
+ * Over the day's target, with activity offered as an option rather than a
+ * penalty. The user asked for this nudge explicitly; the wording keeps it a
+ * suggestion about feeling good, never a debt to be worked off.
+ */
+const overTargetMove: Rule = ({ summary, profile }) => {
+  if (!summary.hasAnyEntry) return null
+  if (summary.remaining >= 0) return null
+  const over = Math.abs(summary.remaining)
+  if (over < summary.calorieTarget * 0.1) return null
+  if (summary.workouts.length > 0) return null
+
+  const goalNote = profile.goal.type === 'lose'
+    ? 'One day rarely shifts a weekly average.'
+    : 'Days vary, and that is fine.'
+
+  return {
+    kind: 'move',
+    time: CHECKPOINT.treat,
+    title: `📊 About ${Math.round(over / 50) * 50} kcal above today's target`,
+    body: `${goalNote} If you feel like moving, an easy 20–30 minute walk is a nice way to end the evening — entirely optional.`,
+    priority: 52,
+    relevance: { type: 'always' },
+  }
+}
+
 const RULES: Rule[] = [
-  underEating, lowProtein, calorieRoom, lowProteinEvening, goodDay, move, hydration,
+  underEating, lowProtein, calorieRoom, lowProteinEvening,
+  goodDay, goalOnTrack, move, overTargetMove, hydration,
 ]
 
 /**

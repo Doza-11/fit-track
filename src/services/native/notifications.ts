@@ -53,6 +53,7 @@ export class CapacitorNotificationChannel implements NotificationChannel {
    * operation that could change it.
    */
   private cached: NotificationPermissionState = 'default'
+  private lastError: string | null = null
 
   constructor() {
     void this.refreshPermission()
@@ -129,10 +130,37 @@ export class CapacitorNotificationChannel implements NotificationChannel {
           },
         })),
       })
-    } catch {
-      // A scheduling failure must not break the app; the queue is rebuilt on
-      // the next store change anyway.
+      this.lastError = null
+    } catch (e) {
+      // A failure must not break the app, but it must not be invisible either:
+      // silent breakage here is exactly why reminders can stop arriving with
+      // no clue as to why.
+      this.lastError = e instanceof Error ? e.message : String(e)
+      console.error('FitTrack: notification scheduling failed', e)
     }
+  }
+
+  /**
+   * Show one immediately. Capacitor treats a notification with no `schedule`
+   * as "deliver now", which is what the test button needs.
+   */
+  async notifyNow(title: string, body: string): Promise<void> {
+    const state = await this.refreshPermission()
+    if (state !== 'granted') {
+      throw new Error(
+        state === 'denied'
+          ? 'Notifications are blocked for FitTrack in Android settings.'
+          : 'Notification permission has not been granted yet.',
+      )
+    }
+    const { LocalNotifications } = await loadPlugin()
+    await LocalNotifications.schedule({
+      notifications: [{ id: toNativeId(`test-${Date.now()}`), title, body }],
+    })
+  }
+
+  getLastError(): string | null {
+    return this.lastError
   }
 
   async cancelAll(): Promise<void> {

@@ -11,9 +11,9 @@
  * app was backgrounded.
  */
 import type {
-  DailySummary, NotificationRelevance, Reminder, ReminderKind,
+  DailySummary, LocalDate, NotificationRelevance, Reminder, ReminderKind,
 } from '@/types'
-import { parseTime } from '@/utils/date'
+import { parseTime, toLocalDate } from '@/utils/date'
 import { isStillRelevant, reminderBody, reminderRelevance } from './smartNotifications'
 import { isNative } from './native/platform'
 import { CapacitorNotificationChannel } from './native/notifications'
@@ -26,6 +26,12 @@ export interface ScheduledNotification {
   at: number
   /** Delivered at most once per key; survives reloads. */
   dedupeKey?: string
+  /**
+   * The local day this notification is for. Relevance is only meaningful for
+   * today — a reminder queued for tomorrow cannot be judged against today's
+   * log — so the scheduler filters on this.
+   */
+  forDate?: LocalDate
   /**
    * Re-checked immediately before display. A reminder to log lunch queued at
    * 13:30 is dropped silently if lunch was logged at 13:20.
@@ -50,6 +56,15 @@ export interface NotificationChannel {
   requestPermission(): Promise<NotificationPermissionState>
   schedule(items: ScheduledNotification[], options?: ScheduleOptions): Promise<void>
   cancelAll(): Promise<void>
+  /** Display something immediately — used by the "send a test" button. */
+  notifyNow(title: string, body: string): Promise<void>
+  /**
+   * Last scheduling failure, so a silent break is visible in Settings rather
+   * than being swallowed. Null when healthy.
+   */
+  getLastError(): string | null
+  /** Re-read the OS permission state (async on native). */
+  refreshPermission?(): Promise<NotificationPermissionState>
 }
 
 export type NotificationPermissionState = 'granted' | 'denied' | 'default' | 'unsupported'
@@ -64,14 +79,22 @@ export const REMINDER_COPY: Record<ReminderKind, { title: string; body: string }
   summary: { title: '📊 Daily summary', body: 'Your day is nearly done — check today’s summary and fill in anything missing.' },
 }
 
+/**
+ * Shipped defaults.
+ *
+ * The three main meals and the end-of-day summary are ON, because logging
+ * reminders are the point of the feature and an app that reminds you of
+ * nothing until you find a settings screen is just silent. The optional
+ * extras (snack, workout, water) stay off so the day isn't noisy.
+ */
 export const DEFAULT_REMINDERS: Omit<Reminder, 'id'>[] = [
-  { kind: 'breakfast', label: 'Breakfast', enabled: false, time: '09:00', days: [] },
-  { kind: 'lunch', label: 'Lunch', enabled: false, time: '13:30', days: [] },
+  { kind: 'breakfast', label: 'Breakfast', enabled: true, time: '09:00', days: [] },
+  { kind: 'lunch', label: 'Lunch', enabled: true, time: '13:30', days: [] },
   { kind: 'snack', label: 'Snack', enabled: false, time: '17:00', days: [] },
-  { kind: 'dinner', label: 'Dinner', enabled: false, time: '20:30', days: [] },
+  { kind: 'dinner', label: 'Dinner', enabled: true, time: '20:30', days: [] },
   { kind: 'workout', label: 'Workout', enabled: false, time: '18:30', days: [] },
   { kind: 'water', label: 'Water', enabled: false, time: '10:00', repeatEveryMin: 120, days: [] },
-  { kind: 'summary', label: 'Daily summary', enabled: false, time: '22:00', days: [] },
+  { kind: 'summary', label: 'Daily summary', enabled: true, time: '22:00', days: [] },
 ]
 
 /** Display order for the reminder list, following the shape of a day. */
@@ -140,8 +163,19 @@ export function toScheduled(
     at,
     dedupeKey: summary ? `${summary.date}:reminder:${r.kind}:${at}` : undefined,
     relevance: summary ? reminderRelevance(r.kind, summary) : { type: 'always' },
+    forDate: toLocalDate(new Date(at)),
   }
 }
+
+/**
+ * How many days of fixed-time reminders to queue ahead.
+ *
+ * Only the next occurrence used to be scheduled, which meant that if the user
+ * did not open the app for a day, nothing re-queued and the reminders simply
+ * stopped. Android holds these in AlarmManager, so queueing a few days out
+ * keeps them arriving through a gap in usage.
+ */
+const REMINDER_LOOKAHEAD_DAYS = 4
 
 // ── Web channel ─────────────────────────────────────────────────────────────
 
@@ -152,6 +186,7 @@ export class WebNotificationChannel implements NotificationChannel {
   private pending: ScheduledNotification[] = []
   private options: ScheduleOptions = {}
   private visibilityBound = false
+  private lastError: string | null = null
 
   isSupported(): boolean {
     return typeof window !== 'undefined' && 'Notification' in window
@@ -228,6 +263,17 @@ export class WebNotificationChannel implements NotificationChannel {
     this.timers = []
     this.pending = []
   }
+
+  async notifyNow(title: string, body: string): Promise<void> {
+    if (this.getPermission() !== 'granted') {
+      throw new Error('Notifications are not permitted in this browser.')
+    }
+    new Notification(title, { body, icon: './icons/icon-192.png' })
+  }
+
+  getLastError(): string | null {
+    return this.lastError
+  }
 }
 
 /**
@@ -241,6 +287,8 @@ class NoopChannel implements NotificationChannel {
   async requestPermission(): Promise<NotificationPermissionState> { return 'unsupported' }
   async schedule(_items: ScheduledNotification[], _options?: ScheduleOptions) { /* nothing to do */ }
   async cancelAll() { /* nothing to do */ }
+  async notifyNow() { throw new Error('Notifications are not supported here.') }
+  getLastError() { return 'Notifications are not supported in this environment.' }
 }
 
 const webChannel = new WebNotificationChannel()
@@ -281,8 +329,14 @@ export function buildSchedule(
         cursor = new Date(at + 1000)
       }
     } else {
-      const at = nextOccurrence(r, from)
-      if (at !== null) out.push(toScheduled(r, at, summary))
+      // Walk forward day by day so a missed day still has reminders waiting.
+      let cursor = from
+      for (let i = 0; i < REMINDER_LOOKAHEAD_DAYS; i++) {
+        const at = nextOccurrence(r, cursor)
+        if (at === null) break
+        out.push(toScheduled(r, at, summary))
+        cursor = new Date(at + 60_000)
+      }
     }
   }
   return out.sort((a, b) => a.at - b.at)
@@ -296,6 +350,27 @@ export function buildSchedule(
  */
 export async function applyReminders(reminders: Reminder[]): Promise<void> {
   await notifications.schedule(buildSchedule(reminders))
+}
+
+/**
+ * Make sure we have permission, asking once if the OS has not been asked yet.
+ *
+ * Called when the app becomes ready rather than only from Settings: a
+ * reminder feature that never prompts can never deliver, and on Android 13+
+ * an unasked app is silently blocked.
+ */
+export async function ensureNotificationPermission(): Promise<NotificationPermissionState> {
+  const current = await notifications.refreshPermission?.() ?? notifications.getPermission()
+  if (current !== 'default') return current
+  return notifications.requestPermission()
+}
+
+/** Fire a notification right now, to prove the pipeline end to end. */
+export async function sendTestNotification(): Promise<void> {
+  await notifications.notifyNow(
+    '✅ Notifications are working',
+    'This is a test from FitTrack. Your reminders will arrive like this.',
+  )
 }
 
 /** Re-export so callers have one import for evaluating a queued notification. */

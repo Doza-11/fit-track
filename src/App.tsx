@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { useStore } from '@/store/useStore'
 import { startNotificationScheduler } from '@/services/notificationScheduler'
+import { ensureNotificationPermission } from '@/services/notifications'
 import { useAndroidBackButton } from '@/services/native/androidBackButton'
 import { useTheme } from '@/hooks/useTheme'
 import { AppLayout } from '@/layouts/AppLayout'
@@ -42,6 +43,14 @@ export default function App() {
     if (status !== 'ready') return
     return startNotificationScheduler()
   }, [status])
+
+  // Ask for notification permission once the user is past onboarding. Without
+  // this the reminders could never be delivered on Android 13+, since nothing
+  // would have prompted unless the user happened to open Settings.
+  useEffect(() => {
+    if (status !== 'ready' || !profile) return
+    void ensureNotificationPermission()
+  }, [status, profile])
 
   if (status === 'loading') {
     return (

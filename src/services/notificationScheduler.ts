@@ -64,7 +64,9 @@ export function buildFullSchedule(
   // is simply re-added on the next pass. The fire-time check still runs, for
   // changes that land between planning and delivery.
   const reminderItems = buildSchedule(state.reminders, now, summary)
-    .filter((n) => !n.relevance || isStillRelevant(n.relevance, summary))
+    // A reminder for a future day cannot be judged against today's log, so
+    // only today's are filtered for relevance.
+    .filter((n) => n.forDate !== date || !n.relevance || isStillRelevant(n.relevance, summary))
 
   if (!profile) return { items: reminderItems, summary }
 
@@ -111,8 +113,10 @@ async function replan(): Promise<void> {
     // Evaluated at fire time against the state as it is *then*, not now.
     isRelevant: (n) => {
       if (!n.relevance) return true
-      const fresh = selectDailySummary(useStore.getState(), today())
-      return isStillRelevant(n.relevance, fresh)
+      // Same rule at fire time: only today's state can invalidate it.
+      const now = today()
+      if (n.forDate && n.forDate !== now) return true
+      return isStillRelevant(n.relevance, selectDailySummary(useStore.getState(), now))
     },
     onDelivered: (n) => {
       if (!n.dedupeKey) return

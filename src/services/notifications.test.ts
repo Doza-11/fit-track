@@ -108,9 +108,20 @@ describe('reminder copy', () => {
     }
   })
 
-  it('ships defaults for every kind, all off until the user opts in', () => {
+  it('ships a default for every kind', () => {
     expect(DEFAULT_REMINDERS).toHaveLength(7)
-    expect(DEFAULT_REMINDERS.every((d) => d.enabled === false)).toBe(true)
+  })
+
+  it('turns the main meal reminders on out of the box', () => {
+    // Reminders are the point of the feature; shipping them all off meant a
+    // fresh install reminded the user of nothing until they found Settings.
+    const on = DEFAULT_REMINDERS.filter((d) => d.enabled).map((d) => d.kind)
+    expect(on).toEqual(expect.arrayContaining(['breakfast', 'lunch', 'dinner', 'summary']))
+  })
+
+  it('leaves the noisier optional reminders off', () => {
+    const off = DEFAULT_REMINDERS.filter((d) => !d.enabled).map((d) => d.kind)
+    expect(off).toEqual(expect.arrayContaining(['snack', 'workout', 'water']))
   })
 })
 
@@ -134,5 +145,48 @@ describe('sortReminders', () => {
     const list = [r({ id: '1', kind: 'dinner' }), r({ id: '2', kind: 'breakfast' })]
     sortReminders(list)
     expect(list[0].kind).toBe('dinner')
+  })
+})
+
+describe('lookahead', () => {
+  const dinner = r({ kind: 'dinner', time: '20:30' })
+
+  it('queues several days of a fixed reminder, not just the next one', () => {
+    // Without this, missing a day of app usage stops reminders entirely.
+    const s = buildSchedule([dinner], wed10am)
+    expect(s.length).toBeGreaterThan(1)
+    const days = new Set(s.map((n) => new Date(n.at).getDate()))
+    expect(days.size).toBeGreaterThan(1)
+  })
+
+  it('tags each occurrence with the local day it will fire on', () => {
+    // The scheduler uses this to avoid judging a future reminder against
+    // today's log.
+    for (const n of buildSchedule([dinner], wed10am)) {
+      const d = new Date(n.at)
+      const expected = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+      expect(n.forDate).toBe(expected)
+    }
+  })
+
+  it('spreads the occurrences across consecutive days', () => {
+    const dates = buildSchedule([dinner], wed10am).map((n) => n.forDate)
+    expect(new Set(dates).size).toBe(dates.length)
+  })
+
+  it('keeps occurrences in ascending order and all in the future', () => {
+    const s = buildSchedule([dinner], wed10am)
+    for (let i = 0; i < s.length; i++) {
+      expect(s[i].at).toBeGreaterThan(wed10am.getTime())
+      if (i > 0) expect(s[i].at).toBeGreaterThan(s[i - 1].at)
+    }
+  })
+
+  it('still respects a weekday restriction across the lookahead', () => {
+    // Saturdays only: every queued occurrence must be a Saturday.
+    const satOnly = r({ kind: 'workout', time: '09:00', days: [6] })
+    for (const n of buildSchedule([satOnly], wed10am)) {
+      expect(new Date(n.at).getDay()).toBe(6)
+    }
   })
 })
