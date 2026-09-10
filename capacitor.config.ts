@@ -14,7 +14,14 @@ const config: CapacitorConfig = {
   android: {
     // The web app paints its own dark ground (see index.html). Matching it
     // here avoids a white flash between the splash screen and first paint.
-    backgroundColor: '#0b1120',
+    backgroundColor: '#06111F',
+  },
+  ios: {
+    backgroundColor: '#06111F',
+    // Let the web layer own the full screen; the app's existing
+    // env(safe-area-inset-*) CSS handles the notch and home indicator, which
+    // iOS populates correctly (unlike Android).
+    contentInset: 'never',
   },
 }
 
