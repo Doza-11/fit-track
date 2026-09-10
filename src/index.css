@@ -1,0 +1,117 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Semantic colour tokens. Tailwind maps `bg-surface`, `text-ink` etc. onto
+ * these, so a theme switch only swaps variables — no component knows the
+ * literal colours. Values are space-separated RGB channels for /alpha support.
+ */
+@layer base {
+  :root {
+    --c-bg: 247 248 250;
+    --c-surface: 255 255 255;
+    --c-raised: 241 243 247;
+    --c-line: 226 230 237;
+    --c-ink: 17 24 39;
+    --c-muted: 90 100 118;
+    --c-faint: 140 149 165;
+    --c-brand: 22 163 116;
+    --c-brand-ink: 255 255 255;
+    --c-protein: 232 93 117;
+    --c-carbs: 240 165 60;
+    --c-fat: 88 133 232;
+    --c-burn: 240 118 62;
+    --c-water: 56 168 224;
+    --c-danger: 214 69 69;
+  }
+
+  .dark {
+    --c-bg: 11 17 32;
+    --c-surface: 20 27 45;
+    --c-raised: 30 39 60;
+    --c-line: 44 55 79;
+    --c-ink: 237 241 248;
+    --c-muted: 152 163 184;
+    --c-faint: 110 122 145;
+    --c-brand: 45 200 145;
+    --c-brand-ink: 8 30 24;
+    --c-protein: 244 122 143;
+    --c-carbs: 249 187 92;
+    --c-fat: 122 162 247;
+    --c-burn: 250 146 90;
+    --c-water: 90 194 244;
+    --c-danger: 244 113 113;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    @apply bg-bg text-ink font-sans antialiased;
+    /* Prevent the rubber-band scroll revealing white behind the app shell. */
+    overscroll-behavior-y: none;
+  }
+
+  /* Respect the OS preference until the user picks a theme explicitly. */
+  @media (prefers-color-scheme: light) {
+    :root:not(.dark):not(.theme-forced) { color-scheme: light; }
+  }
+
+  button, [role='button'] { touch-action: manipulation; }
+
+  /* Inputs must not zoom the viewport on iOS — 16px is the threshold. */
+  input, select, textarea { font-size: 16px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+@layer components {
+  .card {
+    @apply bg-surface rounded-2xl border border-line/70 p-4;
+  }
+
+  /* 44px minimum hit area, per touch-target guidance. */
+  .tap {
+    @apply min-h-[44px] min-w-[44px] flex items-center justify-center;
+  }
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 min-h-[48px]
+           font-semibold text-[15px] transition active:scale-[0.98]
+           disabled:opacity-40 disabled:pointer-events-none;
+  }
+  .btn-primary { @apply btn bg-brand text-brand-ink; }
+  .btn-ghost { @apply btn bg-raised text-ink; }
+  .btn-danger { @apply btn bg-danger/10 text-danger; }
+
+  .field {
+    @apply w-full rounded-xl bg-raised border border-line px-4 py-3 text-ink
+           placeholder:text-faint outline-none transition
+           focus:border-brand focus:ring-2 focus:ring-brand/25;
+  }
+
+  .chip {
+    @apply px-3 py-1.5 rounded-full text-[13px] font-medium whitespace-nowrap transition;
+  }
+  .chip-on { @apply chip bg-brand text-brand-ink; }
+  .chip-off { @apply chip bg-raised text-muted active:bg-line; }
+
+  .label { @apply text-[13px] font-medium text-muted; }
+
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+  /* Focus ring for keyboard users only, so touch taps stay clean. */
+  .focusable:focus-visible {
+    @apply outline-none ring-2 ring-brand ring-offset-2 ring-offset-bg;
+  }
+}

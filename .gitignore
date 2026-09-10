@@ -1,0 +1,25 @@
+node_modules/
+dist/
+dist-ssr/
+*.local
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.log
+npm-debug.log*
+coverage/
+
+# Capacitor
+# The native android/ project IS tracked — it holds the manifest, Gradle
+# config and signing wiring. Its own android/.gitignore excludes build output.
+ios/
+
+# Signing secrets — never commit these (see docs/ANDROID.md)
+*.keystore
+*.jks
+android/keystore.properties
+android/app/release/
+
+# TypeScript build info
+*.tsbuildinfo
