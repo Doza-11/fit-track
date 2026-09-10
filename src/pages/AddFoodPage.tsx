@@ -162,6 +162,7 @@ function FoodRow({ food, onClick }: { food: Food; onClick: () => void }) {
       <span className="flex-1 min-w-0">
         <span className="block text-[14.5px] font-medium truncate">
           {food.name}
+          {food.brand && <span className="ml-1.5 text-[11.5px] text-faint font-normal">{food.brand}</span>}
           {food.custom && <span className="ml-1.5 text-[10px] text-brand font-bold uppercase">Custom</span>}
         </span>
         <span className="block text-[12px] text-faint truncate">

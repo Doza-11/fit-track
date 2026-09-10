@@ -16,7 +16,7 @@ npm run build      # production build into dist/
 | Area | Capability |
 | --- | --- |
 | Dashboard | Calorie ring, macro progress, burn/water/steps/weight tiles, time-of-day suggestion, meal and workout status |
-| Food | 130-food seeded database with search, serving/quantity selection, custom foods, saved meals, repeat-a-meal, per-item editing |
+| Food | 218-food seeded database with search, serving/quantity selection, custom foods, saved meals, repeat-a-meal, per-item editing |
 | Workouts | 83 exercises, set/rep/weight logging, cardio duration & distance, MET-based burn estimates, routines, personal records |
 | Goals | BMR/TDEE onboarding, recommended calorie and macro targets, manual override, water and step targets |
 | Suggestions | Rule engine keyed to intake, remaining calories, protein, activity, hydration and time of day |

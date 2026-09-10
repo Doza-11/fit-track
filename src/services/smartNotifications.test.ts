@@ -6,6 +6,7 @@ import {
 } from './smartNotifications'
 import type { DailySummary, Meal, UserProfile, Workout } from '@/types'
 import { EMPTY_NUTRIENTS } from '@/utils/calculations'
+import { SEED_FOODS } from '@/data/foods'
 
 const profile: UserProfile = {
   id: 'current', name: 'Test', age: 30, sex: 'male', heightCm: 178, weightKg: 78,
@@ -137,23 +138,42 @@ describe('calorie room', () => {
   })
 
   it('never offers a main-meal food as a treat', () => {
-    // "You have 500 kcal left, how about some paneer" is not a suggestion.
-    const banned = /paneer|dal |rice|roti|curry|milk \(|curd/i
+    // The rule is semantic, not a name pattern: a treat must be eaten as a
+    // snack or dessert and must not be a main-meal food. Checking the source
+    // data directly keeps this honest as the database grows.
     for (const remaining of [300, 500, 700, 1000]) {
       for (const d of ['2026-09-09', '2026-09-10', '2026-09-11', '2026-09-12', '2026-09-13']) {
         for (const t of pickTreats(remaining, d)) {
-          expect(t.name, `${t.name} @ ${remaining}`).not.toMatch(banned)
+          const food = SEED_FOODS.find((f) => f.name === t.name)
+          expect(food, t.name).toBeDefined()
+          const meals = food!.commonMeals ?? []
+          expect(meals, `${t.name} is a lunch food`).not.toContain('lunch')
+          expect(meals, `${t.name} is a dinner food`).not.toContain('dinner')
+          expect(meals.some((m) => m === 'snack' || m === 'dessert'), t.name).toBe(true)
         }
       }
     }
   })
 
-  it('does surface an everyday treat when there is room for one', () => {
-    // Across a week at a typical evening remainder, something recognisably
-    // enjoyable should come up rather than only worthy options.
+  it('never offers these specifically, however the data changes', () => {
+    // Regression guard: plain paneer, cooking milk and curd were once
+    // suggested as treats, which reads absurdly.
+    const nonsense = ['Paneer', 'Milk (full fat)', 'Milk (toned)', 'Curd / Dahi']
+    for (const remaining of [300, 500, 700, 1000, 1500]) {
+      for (const d of ['2026-09-09', '2026-09-11', '2026-09-13']) {
+        for (const t of pickTreats(remaining, d)) {
+          expect(nonsense, `${t.name} @ ${remaining}`).not.toContain(t.name)
+        }
+      }
+    }
+  })
+
+  it('does surface an actual dessert when there is room for one', () => {
+    // Across a week at a typical evening remainder, something from the dessert
+    // category should come up rather than only worthy options.
     const week = ['2026-09-09', '2026-09-10', '2026-09-11', '2026-09-12', '2026-09-13', '2026-09-14']
-      .flatMap((d) => pickTreats(500, d).map((t) => t.name))
-    expect(week.some((n) => /ice cream|chocolate|jamun|laddu|jalebi|brownie|kheer|halwa/i.test(n))).toBe(true)
+      .flatMap((d) => pickTreats(500, d))
+    expect(week.some((t) => t.category === 'dessert')).toBe(true)
   })
 
   it('offers variety rather than three desserts', () => {

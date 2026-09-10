@@ -36,6 +36,7 @@ function scoreFood(food: Food, query: string, opts: FoodSearchOptions): number {
     else if (name.startsWith(q)) score = 700
     else if (name.split(/[\s/()-]+/).some((w) => w.startsWith(q))) score = 500
     else if (name.includes(q)) score = 300
+    else if (food.brand && normalise(food.brand).includes(q)) score = 250
     else if (normalise(food.category).startsWith(q)) score = 100
     else return 0
   } else {
