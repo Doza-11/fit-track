@@ -7,6 +7,7 @@ export default {
       colors: {
         // Semantic tokens driven by CSS variables so light/dark stay in sync.
         bg: 'rgb(var(--c-bg) / <alpha-value>)',
+        section: 'rgb(var(--c-section) / <alpha-value>)',
         surface: 'rgb(var(--c-surface) / <alpha-value>)',
         raised: 'rgb(var(--c-raised) / <alpha-value>)',
         line: 'rgb(var(--c-line) / <alpha-value>)',
@@ -20,6 +21,9 @@ export default {
         fat: 'rgb(var(--c-fat) / <alpha-value>)',
         burn: 'rgb(var(--c-burn) / <alpha-value>)',
         water: 'rgb(var(--c-water) / <alpha-value>)',
+        success: 'rgb(var(--c-success) / <alpha-value>)',
+        insight: 'rgb(var(--c-insight) / <alpha-value>)',
+        achievement: 'rgb(var(--c-achievement) / <alpha-value>)',
         danger: 'rgb(var(--c-danger) / <alpha-value>)',
       },
       fontFamily: {

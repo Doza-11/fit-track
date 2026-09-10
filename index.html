@@ -7,6 +7,13 @@
     <meta name="description" content="Track meals, workouts, calories and progress." />
     <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
     <link rel="apple-touch-icon" href="./icons/icon-192.png" />
+    <!-- iOS home-screen apps: run standalone (no Safari chrome) and tint the
+         status bar to match the app's dark ground. Safari ignores the web
+         manifest's `display` field, so these are required for iPhone. -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="FitTrack" />
+    <meta name="mobile-web-app-capable" content="yes" />
     <title>FitTrack</title>
   </head>
   <body>

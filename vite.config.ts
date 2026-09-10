@@ -14,6 +14,10 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      // Registration is done manually in main.tsx so it can be skipped inside
+      // the Capacitor WebView, where a stale precache would serve an old
+      // bundle after an APK update.
+      injectRegister: null,
       includeAssets: ['favicon.svg'],
       manifest: {
         name: 'FitTrack — Fitness & Nutrition',
