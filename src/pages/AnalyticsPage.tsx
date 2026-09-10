@@ -133,14 +133,14 @@ export function AnalyticsPage() {
           {insights.length > 0 && (
             <>
               <div className="flex items-center gap-2 mt-6 mb-2.5 px-1">
-                <SparkIcon size={17} className="text-brand" />
+                <SparkIcon size={17} className="text-insight" />
                 <h2 className="text-[15px] font-semibold">Insights</h2>
               </div>
               <div className="space-y-2">
                 {insights.map((i) => (
                   <Card
                     key={i.id}
-                    className={`flex gap-3 py-3 ${i.tone === 'positive' ? 'border-brand/30 bg-brand/[0.05]' : ''}`}
+                    className={`flex gap-3 py-3 ${i.tone === 'positive' ? 'border-achievement/30 bg-achievement/[0.06]' : ''}`}
                   >
                     <span className="text-[17px] leading-none pt-0.5" aria-hidden="true">{i.icon}</span>
                     <p className="text-[13px] text-muted leading-relaxed flex-1">{i.text}</p>

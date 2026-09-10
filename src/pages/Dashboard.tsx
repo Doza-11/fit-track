@@ -10,7 +10,8 @@ import { useNavigate } from 'react-router-dom'
 import { useStore, selectDailySummary } from '@/store/useStore'
 import { useLogSheets } from '@/hooks/useLogSheets'
 import {
-  Card, EstimateNote, ProgressBar, ProgressRing, SectionTitle, StatTile,
+  CALORIE_RING_GRADIENT, Card, EstimateNote, ProgressBar, ProgressRing,
+  SectionTitle, StatTile,
 } from '@/components/ui'
 import {
   CalendarIcon, CheckIcon, ChevronRight, DropIcon, DumbbellIcon, FlameIcon,
@@ -77,7 +78,7 @@ export function Dashboard() {
 
       {/* ── Calorie headline ── */}
       <Card className="mb-3 flex flex-col items-center pt-5 pb-4">
-        <ProgressRing value={ratio}>
+        <ProgressRing value={ratio} gradient={CALORIE_RING_GRADIENT}>
           <span className="text-[34px] font-bold tabular-nums leading-none">
             {summary.caloriesConsumed.toLocaleString()}
           </span>
@@ -112,7 +113,7 @@ export function Dashboard() {
       {suggestion && (
         <Card
           className={`mb-3 animate-pop-in ${
-            suggestion.tone === 'positive' ? 'border-brand/35 bg-brand/[0.06]' : ''
+            suggestion.tone === 'positive' ? 'border-achievement/35 bg-achievement/[0.07]' : ''
           }`}
         >
           <div className="flex gap-3">
@@ -217,7 +218,7 @@ export function Dashboard() {
             >
               <span
                 className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0
-                  ${w.inProgress ? 'bg-burn/15 text-burn' : 'bg-brand/12 text-brand'}`}
+                  ${w.inProgress ? 'bg-burn/15 text-burn' : 'bg-success/15 text-success'}`}
               >
                 {w.inProgress ? <DumbbellIcon size={20} /> : <CheckIcon size={20} />}
               </span>

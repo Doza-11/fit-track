@@ -252,7 +252,7 @@ function DayDetail({ date }: { date: LocalDate }) {
 
           {summary.workouts.map((w) => (
             <Card key={w.id} className="mb-2 flex items-center gap-3 py-3">
-              <span className="w-9 h-9 rounded-xl bg-brand/12 text-brand flex items-center justify-center shrink-0">
+              <span className="w-9 h-9 rounded-xl bg-success/15 text-success flex items-center justify-center shrink-0">
                 <CheckIcon size={18} />
               </span>
               <button className="flex-1 min-w-0 text-left" onClick={() => navigate(`/workout/${w.id}`)}>

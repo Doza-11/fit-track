@@ -1,6 +1,6 @@
 /** Shared presentational primitives used across every screen. */
 import {
-  useEffect, useRef, useState, type ReactNode, type InputHTMLAttributes,
+  useEffect, useMemo, useRef, useState, type ReactNode, type InputHTMLAttributes,
 } from 'react'
 import { CloseIcon } from './icons'
 
@@ -47,6 +47,7 @@ export function ProgressBar({ value, color = 'brand', height = 8, track = true }
   value: number
   /** A semantic token name: brand | protein | carbs | fat | burn | water. */
   color?: 'brand' | 'protein' | 'carbs' | 'fat' | 'burn' | 'water' | 'danger'
+    | 'success' | 'insight' | 'achievement'
   height?: number
   track?: boolean
 }) {
@@ -68,26 +69,55 @@ export function ProgressBar({ value, color = 'brand', height = 8, track = true }
   )
 }
 
-/** Circular progress ring used for the dashboard's calorie headline. */
+/**
+ * Circular progress ring used for the dashboard's calorie headline.
+ *
+ * Pass `gradient` to sweep the arc through several hues; a solid `color` is
+ * used otherwise. Each instance needs its own gradient id, or two rings on one
+ * screen would share (and fight over) the same SVG definition.
+ */
+let ringSeq = 0
+
 export function ProgressRing({
-  value, size = 168, stroke = 13, children, color = 'rgb(var(--c-brand))',
+  value, size = 168, stroke = 13, children, color = 'rgb(var(--c-brand))', gradient,
 }: {
-  value: number; size?: number; stroke?: number; children?: ReactNode; color?: string
+  value: number
+  size?: number
+  stroke?: number
+  children?: ReactNode
+  color?: string
+  /** Two or more CSS colours swept along the arc. */
+  gradient?: string[]
 }) {
+  const gradientId = useMemo(() => `ring-grad-${++ringSeq}`, [])
   const r = (size - stroke) / 2
   const circumference = 2 * Math.PI * r
   const clamped = Math.min(1, Math.max(0, value))
   const over = value > 1.02
+
+  const strokeColor = over
+    ? 'rgb(var(--c-danger))'
+    : gradient && gradient.length > 1 ? `url(#${gradientId})` : color
+
   return (
     <div className="relative inline-flex items-center justify-center" style={{ width: size, height: size }}>
       <svg width={size} height={size} className="-rotate-90" aria-hidden="true">
+        {gradient && gradient.length > 1 && (
+          <defs>
+            <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="100%">
+              {gradient.map((c, i) => (
+                <stop key={i} offset={`${(i / (gradient.length - 1)) * 100}%`} stopColor={c} />
+              ))}
+            </linearGradient>
+          </defs>
+        )}
         <circle
           cx={size / 2} cy={size / 2} r={r} fill="none"
           stroke="rgb(var(--c-raised))" strokeWidth={stroke}
         />
         <circle
           cx={size / 2} cy={size / 2} r={r} fill="none"
-          stroke={over ? 'rgb(var(--c-danger))' : color}
+          stroke={strokeColor}
           strokeWidth={stroke} strokeLinecap="round"
           strokeDasharray={circumference}
           strokeDashoffset={circumference * (1 - clamped)}
@@ -100,6 +130,14 @@ export function ProgressRing({
     </div>
   )
 }
+
+/** The calorie ring's hue sweep, shared so other screens can match it. */
+export const CALORIE_RING_GRADIENT = [
+  'rgb(var(--c-brand))',
+  'rgb(var(--g-to))',
+  'rgb(var(--c-fat))',
+  'rgb(var(--c-carbs))',
+]
 
 export function StatTile({ icon, label, value, sub, onClick, accent }: {
   icon?: ReactNode; label: string; value: ReactNode; sub?: string

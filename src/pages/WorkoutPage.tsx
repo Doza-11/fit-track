@@ -230,7 +230,7 @@ function RecordsTab() {
       <div className="space-y-2">
         {records.map((r) => (
           <Card key={r.exerciseId} className="flex items-center gap-3 py-3">
-            <span className="w-9 h-9 rounded-xl bg-brand/12 text-brand flex items-center justify-center shrink-0">
+            <span className="w-9 h-9 rounded-xl bg-achievement/15 text-achievement flex items-center justify-center shrink-0">
               <CheckIcon size={18} />
             </span>
             <span className="flex-1 min-w-0">

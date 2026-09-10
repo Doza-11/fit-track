@@ -56,8 +56,8 @@ export function AppLayout({ children }: { children: ReactNode }) {
         aria-label="Quick add"
         aria-hidden={fabHidden}
         tabIndex={fabHidden ? -1 : 0}
-        className={`fixed right-4 z-40 w-14 h-14 rounded-full bg-brand text-brand-ink
-                   shadow-lg shadow-brand/30 flex items-center justify-center
+        className={`fixed right-4 z-40 w-14 h-14 rounded-full grad-primary text-white
+                   shadow-lg shadow-black/40 flex items-center justify-center
                    focusable transition-all duration-300 active:scale-95
                    ${fabHidden ? 'translate-y-24 opacity-0 pointer-events-none' : 'translate-y-0 opacity-100'}`}
         style={{ bottom: 'calc(env(safe-area-inset-bottom) + 4.75rem)' }}
@@ -66,7 +66,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
       </button>
 
       <nav
-        className="fixed bottom-0 inset-x-0 z-40 bg-surface/95 backdrop-blur-lg border-t border-line"
+        className="fixed bottom-0 inset-x-0 z-40 bg-section/95 backdrop-blur-lg border-t border-line"
         style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
         aria-label="Main"
       >

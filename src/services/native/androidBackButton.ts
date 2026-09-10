@@ -8,11 +8,13 @@
  * mean "leave the app", which is what Android users expect.
  */
 import { useEffect } from 'react'
-import { isNative } from './platform'
+import { isAndroid } from './platform'
 
 export function useAndroidBackButton(): void {
   useEffect(() => {
-    if (!isNative()) return
+    // Android only — iOS has no hardware back key, so the listener would
+    // never fire and there is no reason to register it.
+    if (!isAndroid()) return
 
     let remove: (() => void) | undefined
     let cancelled = false
