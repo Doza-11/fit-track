@@ -22,7 +22,9 @@ import {
   calculateFiberTarget, calculateMacroProgress, displayWeight, round, sumNutrients,
 } from '@/utils/calculations'
 import { NutrientExtras } from '@/components/NutrientExtras'
-import type { DailySummary, LocalDate } from '@/types'
+import { EditPortionSheet } from '@/components/EditPortionSheet'
+import { MonthReportSheet } from '@/components/MonthReportCard'
+import type { DailySummary, LocalDate, Meal, MealItem } from '@/types'
 
 const WEEKDAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
 
@@ -133,7 +135,11 @@ export function HistoryPage() {
         </div>
       </Card>
 
-      <MonthSummary title={monthLabel} summaries={[...summaries.values()].filter((s) => s.date <= today())} />
+      <MonthSummary
+        title={monthLabel}
+        month={month}
+        summaries={[...summaries.values()].filter((s) => s.date <= today())}
+      />
 
       <DayDetail date={selected} />
     </Screen>
@@ -144,7 +150,8 @@ export function HistoryPage() {
  * Month totals. Averages count only days with food logged, so a forgotten day
  * doesn't drag the average down to look like under-eating.
  */
-function MonthSummary({ title, summaries }: { title: string; summaries: DailySummary[] }) {
+function MonthSummary({ title, month, summaries }: { title: string; month: Date; summaries: DailySummary[] }) {
+  const [reportOpen, setReportOpen] = useState(false)
   const foodDays = summaries.filter((s) => s.caloriesConsumed > 0)
   if (foodDays.length === 0 && !summaries.some((s) => s.workouts.length > 0)) return null
 
@@ -173,7 +180,15 @@ function MonthSummary({ title, summaries }: { title: string; summaries: DailySum
 
   return (
     <Card className="mb-4">
-      <h2 className="text-[13px] font-semibold text-muted mb-2.5">{title} summary</h2>
+      <div className="flex items-center justify-between mb-2.5">
+        <h2 className="text-[13px] font-semibold text-muted">{title} summary</h2>
+        <button
+          onClick={() => setReportOpen(true)}
+          className="text-[12.5px] font-semibold text-brand px-2 -mr-2 min-h-[36px] focusable rounded-lg"
+        >
+          Share report card
+        </button>
+      </div>
       <div className="grid grid-cols-2 gap-x-4 gap-y-3">
         <MonthStat label="Avg intake / day" value={avgKcal ? `${avgKcal.toLocaleString()} kcal` : '—'} />
         <MonthStat label="Days with food logged" value={`${foodDays.length}`} sub={onTarget ? `${onTarget} within 10% of target` : undefined} />
@@ -201,6 +216,7 @@ function MonthSummary({ title, summaries }: { title: string; summaries: DailySum
           </p>
         </div>
       )}
+      <MonthReportSheet open={reportOpen} month={month} onClose={() => setReportOpen(false)} />
     </Card>
   )
 }
@@ -234,6 +250,7 @@ function DayDetail({ date }: { date: LocalDate }) {
   const deleteWorkout = useStore((s) => s.deleteWorkout)
   const { openWeight, openSteps, openWater } = useLogSheets()
   const [confirm, setConfirm] = useState<{ kind: 'meal' | 'workout'; id: string; name: string } | null>(null)
+  const [editing, setEditing] = useState<{ meal: Meal; item: MealItem } | null>(null)
 
   const macros = calculateMacroProgress(summary.macros, summary.macroTargets)
   const unit = profile.units.weight
@@ -331,14 +348,19 @@ function DayDetail({ date }: { date: LocalDate }) {
                     <TrashIcon size={16} />
                   </button>
                 </div>
-                <div className="px-4 pb-2.5 border-t border-line/60 pt-2 space-y-1">
+                <div className="border-t border-line/60 divide-y divide-line/40">
                   {meal.items.map((i) => (
-                    <div key={i.id} className="flex justify-between text-[12.5px]">
+                    <button
+                      key={i.id}
+                      onClick={() => setEditing({ meal, item: i })}
+                      className="w-full flex justify-between text-[12.5px] px-4 py-2 text-left active:bg-raised focusable"
+                      aria-label={`Edit portion of ${i.foodName}`}
+                    >
                       <span className="text-muted truncate pr-3">
                         {i.foodName} <span className="text-faint">· {round(i.grams, 0)}g</span>
                       </span>
                       <span className="tabular-nums shrink-0">{Math.round(i.nutrients.calories)}</span>
-                    </div>
+                    </button>
                   ))}
                 </div>
               </Card>
@@ -380,6 +402,8 @@ function DayDetail({ date }: { date: LocalDate }) {
           Next day <ChevronRight size={17} />
         </button>
       </div>
+
+      <EditPortionSheet entry={editing} onClose={() => setEditing(null)} />
 
       <ConfirmDialog
         open={confirm !== null}

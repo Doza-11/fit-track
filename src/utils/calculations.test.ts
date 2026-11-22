@@ -6,7 +6,7 @@ import {
   scaleNutrients, sumNutrients, estimate1RM, workoutVolume, calculateStreak,
   percentChange, projectGoalDays, cmToFtIn, ftInToCm, kgToLb, lbToKg, bmi,
   calorieAdherence, recommendTargets, defaultWeeklyRate, EMPTY_NUTRIENTS,
-  calculateFiberTarget, proteinPerKg,
+  calculateFiberTarget, proteinPerKg, metFromCalories,
 } from './calculations'
 import type { Exercise, Nutrients, WeightEntry, WorkoutExercise, DailySummary } from '@/types'
 
@@ -397,5 +397,18 @@ describe('proteinPerKg', () => {
   })
   it('returns 0 without a weight', () => {
     expect(proteinPerKg(120, 0)).toBe(0)
+  })
+})
+
+describe('metFromCalories', () => {
+  it('converts calories per duration into MET for the user\'s weight', () => {
+    // 300 kcal in 30 min at 75 kg → 300 / (75 × 0.5) = 8 MET.
+    expect(metFromCalories(300, 30, 75)).toBe(8)
+  })
+  it('clamps to a realistic range and handles missing input', () => {
+    expect(metFromCalories(5000, 10, 60)).toBe(20)
+    expect(metFromCalories(10, 60, 80)).toBe(1)
+    expect(metFromCalories(0, 30, 75)).toBe(0)
+    expect(metFromCalories(200, 0, 75)).toBe(0)
   })
 })

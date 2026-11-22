@@ -266,6 +266,16 @@ export function calculateWorkoutCalories(input: {
   return Math.round(met * weightKg * (durationMin / 60))
 }
 
+/**
+ * MET for a custom exercise from "about N kcal in M minutes" at the user's
+ * weight — so the rest of the app can scale it to any duration or bodyweight.
+ * Clamped to the range real activities fall in (rest ≈ 1, sprinting ≈ 20).
+ */
+export function metFromCalories(kcal: number, minutes: number, weightKg: number): number {
+  if (!(kcal > 0) || !(minutes > 0) || !(weightKg > 0)) return 0
+  return round(clamp(kcal / (weightKg * (minutes / 60)), 1, 20), 1)
+}
+
 export function metFor(exercise: Exercise, intensity: Intensity = 'moderate'): number {
   return exercise.metByIntensity?.[intensity] ?? exercise.met
 }

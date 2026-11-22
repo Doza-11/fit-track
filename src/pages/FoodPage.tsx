@@ -2,14 +2,13 @@
  * Food tab — the day's intake in detail, with per-item editing.
  * The date can be shifted so this doubles as the food view for past days.
  */
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import type { Meal, MealItem, MealType, Nutrients } from '@/types'
+import type { Meal, MealItem, MealType } from '@/types'
 import { useStore, selectDailySummary } from '@/store/useStore'
-import { foodRepo, nutrientsForServing } from '@/services/foodRepository'
+import { EditPortionSheet } from '@/components/EditPortionSheet'
 import {
-  Card, ConfirmDialog, EmptyState, Field, ProgressBar, Screen, Sheet,
-  Stepper, toast,
+  Card, ConfirmDialog, EmptyState, Field, ProgressBar, Screen, Sheet, toast,
 } from '@/components/ui'
 import {
   ChevronLeft, ChevronRight, PlusIcon, RepeatIcon, TrashIcon,
@@ -123,7 +122,7 @@ export function FoodPage() {
         ))}
       </div>
 
-      <EditItemSheet
+      <EditPortionSheet
         entry={editing}
         onClose={() => setEditing(null)}
       />
@@ -231,99 +230,6 @@ function MealCard({ type, meal, date, onEdit, onSaveAsMeal }: {
         }}
       />
     </Card>
-  )
-}
-
-/** Rescale a logged item's stored nutrition when its source food is gone. */
-function scaleStored(item: MealItem, quantity: number): Nutrients {
-  const f = item.quantity > 0 ? quantity / item.quantity : 0
-  const n = item.nutrients
-  return {
-    calories: round(n.calories * f, 1),
-    protein: round(n.protein * f, 1),
-    carbs: round(n.carbs * f, 1),
-    fat: round(n.fat * f, 1),
-    fiber: round(n.fiber * f, 1),
-    sugar: round(n.sugar * f, 1),
-  }
-}
-
-function EditItemSheet({ entry, onClose }: {
-  entry: { meal: Meal; item: MealItem } | null
-  onClose: () => void
-}) {
-  const updateMealItem = useStore((s) => s.updateMealItem)
-  const [quantity, setQuantity] = useState(1)
-  const [servingIndex, setServingIndex] = useState(0)
-
-  const food = entry ? foodRepo.get(entry.item.foodId) : undefined
-
-  // Seed the controls whenever a different item is opened.
-  const key = entry?.item.id
-  useEffect(() => {
-    if (!entry) return
-    setQuantity(entry.item.quantity)
-    const i = food?.servings.findIndex((s) => s.label === entry.item.servingLabel) ?? -1
-    setServingIndex(i >= 0 ? i : 0)
-    // Keyed on the item id so re-renders don't fight the user's edits.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key])
-
-  if (!entry) return null
-
-  const serving = food?.servings[servingIndex]
-  const computed = food && serving
-    ? nutrientsForServing(food, serving, quantity)
-    // The food is no longer in the database — scale the stored values instead.
-    : {
-        grams: entry.item.grams * (quantity / entry.item.quantity),
-        nutrients: scaleStored(entry.item, quantity),
-      }
-
-  const save = async () => {
-    await updateMealItem(entry.meal.id, {
-      ...entry.item,
-      quantity,
-      servingLabel: serving?.label ?? entry.item.servingLabel,
-      grams: computed.grams,
-      nutrients: computed.nutrients,
-    })
-    toast('Updated')
-    onClose()
-  }
-
-  return (
-    <Sheet
-      open
-      onClose={onClose}
-      title={entry.item.foodName}
-      footer={
-        <button className="btn-primary w-full" onClick={() => void save()} disabled={quantity <= 0}>
-          Save · {Math.round(computed.nutrients.calories)} kcal
-        </button>
-      }
-    >
-      <div className="pb-3">
-        {food && food.servings.length > 1 && (
-          <Field label="Serving">
-            <div className="flex flex-wrap gap-1.5">
-              {food.servings.map((s, i) => (
-                <button
-                  key={s.label}
-                  onClick={() => setServingIndex(i)}
-                  className={i === servingIndex ? 'chip-on' : 'chip-off'}
-                >
-                  {s.label}
-                </button>
-              ))}
-            </div>
-          </Field>
-        )}
-        <Field label="Quantity" hint={`${round(computed.grams, 0)} g total`}>
-          <Stepper value={quantity} onChange={setQuantity} step={0.5} min={0.5} max={50} />
-        </Field>
-      </div>
-    </Sheet>
   )
 }
 

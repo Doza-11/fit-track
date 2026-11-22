@@ -100,3 +100,63 @@ export function suggestMealShortcut(
   const yesterday = candidates.find((m) => m.date === addDays(date, -1))
   return yesterday ? toShortcut('yesterday', yesterday, 1) : null
 }
+
+// ── Usual portion of a single food ──────────────────────────────────────────
+
+export interface UsualPortion {
+  /** 'usual' = the same amount on 2+ recent logs; 'last' = only seen once. */
+  kind: 'usual' | 'last'
+  servingLabel: string
+  quantity: number
+  /** How many of the recent logs used exactly this amount. */
+  times: number
+}
+
+/**
+ * The amount someone normally logs of a food, so "2 rotis" is pre-selected
+ * instead of the default "1 roti".
+ *
+ * Looks at the most recent `sample` logs of the food. If enough of them were
+ * in the meal slot being logged, only those count — someone may have 1 roti at
+ * lunch but 3 at dinner. The most common serving + quantity wins, ties going
+ * to the most recent; a single previous log is offered as "last time".
+ */
+export function usualPortion(
+  meals: Meal[],
+  foodId: string,
+  { mealType, sample = 10 }: { mealType?: MealType; sample?: number } = {},
+): UsualPortion | null {
+  const logs = meals
+    .flatMap((m) => m.items
+      .filter((i) => i.foodId === foodId && i.quantity > 0)
+      .map((i) => ({ type: m.type, date: m.date, at: m.loggedAt, servingLabel: i.servingLabel, quantity: i.quantity })))
+    .sort((a, b) => b.date.localeCompare(a.date) || b.at - a.at)
+    .slice(0, sample)
+  if (logs.length === 0) return null
+
+  const inSlot = mealType ? logs.filter((l) => l.type === mealType) : []
+  const pool = inSlot.length >= 2 ? inSlot : logs
+
+  const counts = new Map<string, { servingLabel: string; quantity: number; times: number; rank: number }>()
+  pool.forEach((l, rank) => {
+    const key = `${l.servingLabel}|${l.quantity}`
+    const c = counts.get(key)
+    if (c) c.times++
+    else counts.set(key, { servingLabel: l.servingLabel, quantity: l.quantity, times: 1, rank })
+  })
+  const best = [...counts.values()].sort((a, b) => b.times - a.times || a.rank - b.rank)[0]
+  return {
+    kind: best.times >= 2 ? 'usual' : 'last',
+    servingLabel: best.servingLabel,
+    quantity: best.quantity,
+    times: best.times,
+  }
+}
+
+/** "You usually have 2 × 1 roti" / "Last time: 1.5 × 1 bowl". */
+export function portionHint(p: UsualPortion): string {
+  const q = Number.isInteger(p.quantity) ? p.quantity : Math.round(p.quantity * 100) / 100
+  return p.kind === 'usual'
+    ? `You usually have ${q} × ${p.servingLabel}`
+    : `Last time: ${q} × ${p.servingLabel}`
+}

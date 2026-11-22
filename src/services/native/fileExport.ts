@@ -63,3 +63,47 @@ function downloadInBrowser(filename: string, json: string): void {
   // Revoke on the next tick so the download has started.
   setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
+
+// ── Images (the monthly report card) ────────────────────────────────────────
+
+/**
+ * Share a generated PNG. Android gets the system share sheet (WhatsApp,
+ * Instagram, Photos…); browsers that support sharing files do the same, and
+ * the rest download it. Everything is produced on the device.
+ */
+export async function shareImage(filename: string, dataUrl: string, text: string): Promise<SaveResult> {
+  if (isNative()) {
+    const [{ Filesystem, Directory }, { Share }] = await Promise.all([
+      import('@capacitor/filesystem'),
+      import('@capacitor/share'),
+    ])
+    // Written as base64 (no encoding option) so the bytes stay binary.
+    await Filesystem.writeFile({
+      path: filename,
+      data: dataUrl.slice(dataUrl.indexOf(',') + 1),
+      directory: Directory.Cache,
+    })
+    const { uri } = await Filesystem.getUri({ directory: Directory.Cache, path: filename })
+    await Share.share({ title: text, text, url: uri, dialogTitle: 'Share your report card' })
+    return { via: 'shared' }
+  }
+
+  const blob = await (await fetch(dataUrl)).blob()
+  const file = new File([blob], filename, { type: 'image/png' })
+  const nav = navigator as Navigator & { canShare?: (d: { files: File[] }) => boolean }
+  if (nav.canShare?.({ files: [file] })) {
+    try {
+      await navigator.share({ files: [file], title: text, text })
+      return { via: 'shared' }
+    } catch (e) {
+      // The user closing the share sheet is not an error worth reporting.
+      if (e instanceof DOMException && e.name === 'AbortError') return { via: 'shared' }
+      throw e
+    }
+  }
+  const a = document.createElement('a')
+  a.href = dataUrl
+  a.download = filename
+  a.click()
+  return { via: 'downloaded' }
+}

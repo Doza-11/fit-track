@@ -14,6 +14,7 @@ import type {
 import { useStore } from '@/store/useStore'
 import { uid } from '@/services/repository'
 import { exerciseRepo } from '@/services/exerciseRepository'
+import { CreateExerciseSheet } from '@/components/CreateExerciseSheet'
 import {
   Card, ConfirmDialog, EmptyState, EstimateNote, Field, NumberField,
   Segmented, Sheet, toast,
@@ -479,10 +480,15 @@ function ExercisePicker({ open, onClose, onPick }: {
 }) {
   const [query, setQuery] = useState('')
   const [type, setType] = useState<ExerciseType | 'all'>('all')
+  const [creating, setCreating] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState<Exercise | null>(null)
+  const customExercises = useStore((s) => s.customExercises)
+  const deleteCustomExercise = useStore((s) => s.deleteCustomExercise)
 
   const results = useMemo(
     () => exerciseRepo.search(query, type === 'all' ? undefined : type),
-    [query, type],
+    // customExercises: the repository's contents change with it.
+    [query, type, customExercises],
   )
 
   useEffect(() => { if (open) { setQuery(''); setType('all') } }, [open])
@@ -501,6 +507,13 @@ function ExercisePicker({ open, onClose, onPick }: {
             aria-label="Search exercises"
           />
         </div>
+        <button
+          onClick={() => setCreating(true)}
+          className="w-full flex items-center gap-2 mb-2.5 px-3 py-2.5 rounded-xl border border-dashed border-brand/40
+                     text-[13.5px] font-semibold text-brand active:bg-brand/10 focusable"
+        >
+          <PlusIcon size={17} /> Create your own exercise
+        </button>
         <div className="flex gap-1.5 overflow-x-auto no-scrollbar">
           <button onClick={() => setType('all')} className={type === 'all' ? 'chip-on' : 'chip-off'}>
             All
@@ -514,27 +527,68 @@ function ExercisePicker({ open, onClose, onPick }: {
       </div>
 
       {results.length === 0 ? (
-        <EmptyState icon="🔍" title="No exercises found" body={`Nothing matches "${query}".`} />
+        <EmptyState
+          icon="🔍"
+          title="No exercises found"
+          body={`Nothing matches "${query}". You can add it as your own exercise.`}
+          action={
+            <button className="btn-primary" onClick={() => setCreating(true)}>
+              <PlusIcon size={18} /> Create “{query.trim() || 'exercise'}”
+            </button>
+          }
+        />
       ) : (
         <div className="space-y-1.5 pb-4">
           {results.map((e) => (
-            <button
-              key={e.id}
-              onClick={() => onPick(e)}
-              className="card w-full flex items-center gap-3 text-left py-3 active:scale-[0.99] transition focusable"
-            >
-              <span className="flex-1 min-w-0">
-                <span className="block text-[14.5px] font-medium truncate">{e.name}</span>
-                <span className="block text-[11.5px] text-faint truncate">
-                  {EXERCISE_TYPE_LABELS[e.type]} · {e.muscleGroups.map((m) => MUSCLE_LABELS[m]).join(', ')}
-                  {e.equipment && ` · ${e.equipment}`}
+            <div key={e.id} className="card w-full flex items-center gap-2 py-3">
+              <button
+                onClick={() => onPick(e)}
+                className="flex-1 min-w-0 flex items-center gap-3 text-left active:scale-[0.99] transition focusable"
+              >
+                <span className="flex-1 min-w-0">
+                  <span className="block text-[14.5px] font-medium truncate">
+                    {e.name}
+                    {e.custom && <span className="ml-1.5 text-[10px] text-brand font-bold uppercase">Custom</span>}
+                  </span>
+                  <span className="block text-[11.5px] text-faint truncate">
+                    {EXERCISE_TYPE_LABELS[e.type]} · {e.muscleGroups.map((m) => MUSCLE_LABELS[m]).join(', ')}
+                    {e.equipment && ` · ${e.equipment}`}
+                  </span>
                 </span>
-              </span>
-              <PlusIcon size={19} className="text-brand shrink-0" />
-            </button>
+                <PlusIcon size={19} className="text-brand shrink-0" />
+              </button>
+              {e.custom && (
+                <button
+                  onClick={() => setConfirmDelete(e)}
+                  className="tap -mr-2 text-faint focusable rounded-lg"
+                  aria-label={`Delete ${e.name}`}
+                >
+                  <TrashIcon size={16} />
+                </button>
+              )}
+            </div>
           ))}
         </div>
       )}
+
+      <CreateExerciseSheet
+        open={creating}
+        initialName={query.trim()}
+        onClose={() => setCreating(false)}
+        onCreated={(e) => { setCreating(false); onPick(e) }}
+      />
+
+      <ConfirmDialog
+        open={confirmDelete !== null}
+        title={`Delete ${confirmDelete?.name ?? 'exercise'}?`}
+        body="It disappears from the list. Workouts you've already logged keep their numbers."
+        onCancel={() => setConfirmDelete(null)}
+        onConfirm={() => {
+          if (confirmDelete) void deleteCustomExercise(confirmDelete.id)
+          setConfirmDelete(null)
+          toast('Exercise deleted')
+        }}
+      />
     </Sheet>
   )
 }
