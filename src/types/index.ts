@@ -112,6 +112,11 @@ export interface ServingSize {
   label: string
   /** Weight of this serving in grams, used to scale nutrition. */
   grams: number
+  /**
+   * The user created this serving without weighing it, so `grams` is a
+   * stand-in (100) and shouldn't be shown as a real weight.
+   */
+  weightUnknown?: boolean
 }
 
 export interface Food {

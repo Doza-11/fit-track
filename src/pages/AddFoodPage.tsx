@@ -10,11 +10,12 @@ import type { CustomMeal, Food, MealItem, MealType, Nutrients, ServingSize } fro
 import { useStore } from '@/store/useStore'
 import { foodRepo, nutrientsForServing } from '@/services/foodRepository'
 import {
-  Card, ConfirmDialog, EmptyState, Field, NumberField, Segmented, Sheet,
-  Stepper, toast,
+  Card, ConfirmDialog, EmptyState, Field, NumberField, Segmented, Sheet, toast,
 } from '@/components/ui'
 import { ChevronLeft, PlusIcon, SearchIcon, TrashIcon } from '@/components/icons'
 import { UsualMealCard } from '@/components/UsualMeal'
+import { PortionControl } from '@/components/PortionControl'
+import { portionHint, usualPortion } from '@/services/usualMeals'
 import { FOOD_CATEGORY_LABELS, MEAL_ICONS, MEAL_LABELS, MEAL_ORDER } from '@/data/foods'
 import { EMPTY_NUTRIENTS, round, sumNutrients } from '@/utils/calculations'
 import { today } from '@/utils/date'
@@ -77,7 +78,7 @@ export function AddFoodPage() {
         options={[
           { value: 'search', label: 'Search' },
           { value: 'meals', label: 'My meals' },
-          { value: 'custom', label: 'Create' },
+          { value: 'custom', label: 'My foods' },
         ]}
       />
 
@@ -127,6 +128,12 @@ export function AddFoodPage() {
               {results.map((f) => (
                 <FoodRow key={f.id} food={f} onClick={() => setSelected(f)} />
               ))}
+              <button
+                onClick={() => setTab('custom')}
+                className="w-full flex items-center justify-center gap-1.5 py-3 text-[13.5px] font-semibold text-brand focusable rounded-xl"
+              >
+                <PlusIcon size={17} /> Can't find it? Add your own food
+              </button>
             </div>
           )}
         </>
@@ -186,15 +193,25 @@ function PortionSheet({ food, mealType, date, onClose }: {
   food: Food | null; mealType: MealType; date: string; onClose: () => void
 }) {
   const addMealItems = useStore((s) => s.addMealItems)
+  const meals = useStore((s) => s.meals)
   const [servingIndex, setServingIndex] = useState(0)
   const [quantity, setQuantity] = useState(1)
   const [saving, setSaving] = useState(false)
 
-  // Reset the portion whenever a different food is opened.
+  // What this person normally has of this food, so it's pre-selected.
+  const usual = useMemo(
+    () => (food ? usualPortion(meals, food.id, { mealType }) : null),
+    // Only recompute when a different food or slot is opened, not on every log.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [food?.id, mealType],
+  )
+
+  // Start each newly opened food at the usual portion, or 1 serving.
   useEffect(() => {
-    setServingIndex(0)
-    setQuantity(1)
-  }, [food?.id])
+    const i = usual && food ? food.servings.findIndex((s) => s.label === usual.servingLabel) : -1
+    setServingIndex(i >= 0 ? i : 0)
+    setQuantity(i >= 0 && usual ? usual.quantity : 1)
+  }, [food?.id, usual])
 
   if (!food) return null
 
@@ -230,7 +247,9 @@ function PortionSheet({ food, mealType, date, onClose }: {
     >
       <div className="pb-3">
         <p className="text-[12.5px] text-muted mb-4">
-          {FOOD_CATEGORY_LABELS[food.category]} · {Math.round(food.per100g.calories)} kcal per 100 g
+          {FOOD_CATEGORY_LABELS[food.category]} · {Math.round(nutrientsForServing(food, food.servings[0], 1).nutrients.calories)} kcal
+          per {food.servings[0].label}
+          {!food.servings[0].weightUnknown && food.servings[0].grams !== 100 && ` · ${Math.round(food.per100g.calories)} kcal per 100 g`}
         </p>
 
         <Field label="Serving">
@@ -247,9 +266,14 @@ function PortionSheet({ food, mealType, date, onClose }: {
           </div>
         </Field>
 
-        <Field label="Quantity" hint={`${round(grams, 0)} g total`}>
-          <Stepper value={quantity} onChange={setQuantity} step={0.5} min={0.5} max={50} />
-        </Field>
+        <PortionControl
+          quantity={quantity}
+          onChange={setQuantity}
+          servingLabel={serving.label}
+          grams={serving.weightUnknown ? undefined : grams}
+          nutrients={nutrients}
+          hint={usual ? portionHint(usual) : undefined}
+        />
 
         <NutritionPanel nutrients={nutrients} />
       </div>
@@ -399,25 +423,51 @@ function SavedMealsTab({ date, mealType }: { date: string; mealType: MealType })
 
 // ── Create custom food ──────────────────────────────────────────────────────
 
+type EntryMode = 'serving' | 'per100'
+
+/**
+ * Create your own food. "Per serving" is the default because that's how
+ * people know home-cooked food ("my bowl of dal is about 250 kcal"); "per
+ * 100 g" matches a nutrition label. Both are stored per 100 g, the single
+ * source of truth every portion scales from.
+ */
 function CreateFoodTab({ onCreated }: { onCreated: (f: Food) => void }) {
   const addCustomFood = useStore((s) => s.addCustomFood)
+  const customFoods = useStore((s) => s.customFoods)
+  const deleteCustomFood = useStore((s) => s.deleteCustomFood)
+  const [mode, setMode] = useState<EntryMode>('serving')
   const [name, setName] = useState('')
   const [category, setCategory] = useState<Food['category']>('indian')
   const [servingLabel, setServingLabel] = useState('1 serving')
-  const [servingGrams, setServingGrams] = useState(100)
-  const [per, setPer] = useState<Nutrients>({ ...EMPTY_NUTRIENTS })
+  const [servingGrams, setServingGrams] = useState(0)
+  const [values, setValues] = useState<Nutrients>({ ...EMPTY_NUTRIENTS })
   const [touched, setTouched] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [confirmId, setConfirmId] = useState<string | null>(null)
+
+  // In per-serving mode the weight is optional: without it, one serving is
+  // treated as 100 g so the per-serving figures are stored exactly.
+  const grams = servingGrams > 0 ? servingGrams : 100
+  const toPer100 = (n: Nutrients): Nutrients => {
+    if (mode === 'per100') return n
+    const f = 100 / grams
+    return {
+      calories: round(n.calories * f, 1), protein: round(n.protein * f, 1),
+      carbs: round(n.carbs * f, 1), fat: round(n.fat * f, 1),
+      fiber: round(n.fiber * f, 1), sugar: round(n.sugar * f, 1),
+    }
+  }
 
   const errors: Record<string, string> = {}
   if (name.trim().length < 2) errors.name = 'Enter a name of at least 2 characters.'
-  if (!(per.calories > 0)) errors.calories = 'Calories must be greater than 0.'
-  if (!(servingGrams > 0)) errors.grams = 'Serving weight must be greater than 0.'
-  const macroKcal = per.protein * 4 + per.carbs * 4 + per.fat * 9
+  if (!(values.calories > 0)) errors.calories = 'Calories must be greater than 0.'
+  if (mode === 'per100' && !(servingGrams > 0)) errors.grams = 'Enter how much one serving weighs.'
+  const macroKcal = values.protein * 4 + values.carbs * 4 + values.fat * 9
   // A gross mismatch usually means a typo, so warn without blocking the save.
-  const macroWarning = per.calories > 0 && macroKcal > per.calories * 1.6
+  const macroWarning = values.calories > 0 && macroKcal > values.calories * 1.6
     ? 'The macros add up to noticeably more energy than the calories you entered. Double-check the values.'
     : null
+  const duplicate = customFoods.some((f) => f.name.trim().toLowerCase() === name.trim().toLowerCase())
 
   const valid = Object.keys(errors).length === 0
 
@@ -428,31 +478,48 @@ function CreateFoodTab({ onCreated }: { onCreated: (f: Food) => void }) {
     const food = await addCustomFood({
       name: name.trim(),
       category,
-      per100g: per,
-      servings: [{ label: servingLabel.trim() || '1 serving', grams: servingGrams }],
+      per100g: toPer100(values),
+      servings: [{
+        label: servingLabel.trim() || '1 serving',
+        grams,
+        ...(servingGrams > 0 ? {} : { weightUnknown: true }),
+      }],
     })
     setSaving(false)
-    toast('Custom food created')
+    toast(`${food.name} saved to your foods`)
     setName('')
-    setPer({ ...EMPTY_NUTRIENTS })
+    setValues({ ...EMPTY_NUTRIENTS })
+    setServingGrams(0)
+    setTouched(false)
     onCreated(food)
   }
 
+  const unit = mode === 'serving' ? 'per serving' : 'per 100 g'
   const field = (key: keyof Nutrients, label: string, suffix = 'g') => (
     <Field label={label} error={touched && key === 'calories' ? errors.calories : undefined}>
       <NumberField
-        value={per[key]}
-        onChange={(v) => setPer((p) => ({ ...p, [key]: v }))}
-        min={0} max={key === 'calories' ? 900 : 100} step={0.1} suffix={suffix}
+        value={values[key]}
+        onChange={(v) => setValues((p) => ({ ...p, [key]: v }))}
+        min={0} max={key === 'calories' ? 5000 : 500} step={0.1} suffix={suffix}
       />
     </Field>
   )
 
   return (
     <div className="pb-4">
+      <Segmented
+        className="mb-3"
+        value={mode}
+        onChange={setMode}
+        options={[
+          { value: 'serving', label: 'Per serving' },
+          { value: 'per100', label: 'Per 100 g (label)' },
+        ]}
+      />
       <p className="text-[12.5px] text-muted mb-4 leading-relaxed">
-        Enter nutrition <strong>per 100 g</strong> — usually printed on the pack. FitTrack
-        scales it to whatever portion you log.
+        {mode === 'serving'
+          ? 'Enter what one serving contains — handy for home-cooked food. Only the calories are required.'
+          : 'Copy the per-100 g column from the pack, then say how much one serving weighs.'}
       </p>
 
       <Field label="Food name" error={touched ? errors.name : undefined}>
@@ -462,6 +529,37 @@ function CreateFoodTab({ onCreated }: { onCreated: (f: Food) => void }) {
           onChange={(e) => setName(e.target.value)}
         />
       </Field>
+      {duplicate && (
+        <p className="text-[12px] text-faint -mt-2 mb-3">You already have a food with this name.</p>
+      )}
+
+      <div className="grid grid-cols-2 gap-2.5">
+        <Field label="Serving name">
+          <input
+            className="field" value={servingLabel} maxLength={24}
+            placeholder="1 bowl"
+            onChange={(e) => setServingLabel(e.target.value)}
+          />
+        </Field>
+        <Field
+          label={mode === 'serving' ? 'Weight (optional)' : 'Serving weight'}
+          error={touched ? errors.grams : undefined}
+        >
+          <NumberField value={servingGrams} onChange={setServingGrams} min={0} max={2000} suffix="g" />
+        </Field>
+      </div>
+
+      <p className="label px-1 mt-2 mb-2">Nutrition {unit}</p>
+      {field('calories', 'Calories', 'kcal')}
+      <div className="grid grid-cols-3 gap-2">
+        {field('protein', 'Protein')}
+        {field('carbs', 'Carbs')}
+        {field('fat', 'Fat')}
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        {field('fiber', 'Fiber')}
+        {field('sugar', 'Sugar')}
+      </div>
 
       <Field label="Category">
         <select
@@ -475,31 +573,6 @@ function CreateFoodTab({ onCreated }: { onCreated: (f: Food) => void }) {
         </select>
       </Field>
 
-      <div className="grid grid-cols-2 gap-2.5">
-        <Field label="Serving name">
-          <input
-            className="field" value={servingLabel} maxLength={24}
-            placeholder="1 bowl"
-            onChange={(e) => setServingLabel(e.target.value)}
-          />
-        </Field>
-        <Field label="Serving weight" error={touched ? errors.grams : undefined}>
-          <NumberField value={servingGrams} onChange={setServingGrams} min={1} max={2000} suffix="g" />
-        </Field>
-      </div>
-
-      <p className="label px-1 mt-2 mb-2">Per 100 g</p>
-      {field('calories', 'Calories', 'kcal')}
-      <div className="grid grid-cols-3 gap-2">
-        {field('protein', 'Protein')}
-        {field('carbs', 'Carbs')}
-        {field('fat', 'Fat')}
-      </div>
-      <div className="grid grid-cols-2 gap-2">
-        {field('fiber', 'Fiber')}
-        {field('sugar', 'Sugar')}
-      </div>
-
       {macroWarning && (
         <p className="text-[12px] text-burn bg-burn/10 rounded-xl px-3 py-2.5 mb-3 leading-snug">
           {macroWarning}
@@ -507,11 +580,50 @@ function CreateFoodTab({ onCreated }: { onCreated: (f: Food) => void }) {
       )}
 
       <button className="btn-primary w-full" onClick={() => void save()} disabled={saving}>
-        {saving ? 'Saving…' : 'Create food'}
+        {saving ? 'Saving…' : 'Save food'}
       </button>
       {touched && !valid && (
         <p className="text-[12px] text-danger text-center mt-2">{Object.values(errors)[0]}</p>
       )}
+
+      {customFoods.length > 0 && (
+        <>
+          <p className="label px-1 mt-6 mb-2">Your foods ({customFoods.length})</p>
+          <div className="space-y-1.5">
+            {[...customFoods].sort((a, b) => a.name.localeCompare(b.name)).map((f) => {
+              const s = f.servings[0]
+              const kcal = Math.round((f.per100g.calories * s.grams) / 100)
+              return (
+                <div key={f.id} className="card flex items-center gap-2 py-2.5">
+                  <button className="flex-1 min-w-0 text-left" onClick={() => onCreated(f)}>
+                    <span className="block text-[14px] font-medium truncate">{f.name}</span>
+                    <span className="block text-[11.5px] text-faint">{s.label} · {kcal} kcal</span>
+                  </button>
+                  <button
+                    onClick={() => setConfirmId(f.id)}
+                    className="tap text-faint focusable rounded-lg"
+                    aria-label={`Delete ${f.name}`}
+                  >
+                    <TrashIcon size={17} />
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+        </>
+      )}
+
+      <ConfirmDialog
+        open={confirmId !== null}
+        title="Delete this food?"
+        body="It disappears from search. Meals you've already logged keep their numbers."
+        onCancel={() => setConfirmId(null)}
+        onConfirm={() => {
+          if (confirmId) void deleteCustomFood(confirmId)
+          setConfirmId(null)
+          toast('Food deleted')
+        }}
+      />
     </div>
   )
 }

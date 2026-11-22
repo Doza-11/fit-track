@@ -32,6 +32,7 @@ export interface StoreState {
   water: WaterEntry[]
   steps: StepEntry[]
   customFoods: Food[]
+  customExercises: Exercise[]
   customMeals: CustomMeal[]
   routines: WorkoutRoutine[]
   reminders: Reminder[]
@@ -55,6 +56,8 @@ export interface StoreState {
   // Custom foods & meals
   addCustomFood: (food: Omit<Food, 'id' | 'custom' | 'createdAt'>) => Promise<Food>
   deleteCustomFood: (id: ID) => Promise<void>
+  addCustomExercise: (input: Omit<Exercise, 'id' | 'custom'>) => Promise<Exercise>
+  deleteCustomExercise: (id: ID) => Promise<void>
   saveCustomMeal: (name: string, type: MealType, items: Omit<MealItem, 'id'>[]) => Promise<void>
   deleteCustomMeal: (id: ID) => Promise<void>
 
@@ -108,6 +111,8 @@ function withDerivedBurn(w: Workout, weightKg: number): Workout {
   }
 }
 
+const CUSTOM_EXERCISES_KEY = 'customExercises'
+
 function rankFrequentFoods(meals: Meal[]): ID[] {
   const counts = new Map<ID, number>()
   for (const m of meals) {
@@ -136,6 +141,7 @@ export const useStore = create<StoreState>((set, get) => ({
   water: [],
   steps: [],
   customFoods: [],
+  customExercises: [],
   customMeals: [],
   routines: [],
   reminders: [],
@@ -282,6 +288,24 @@ export const useStore = create<StoreState>((set, get) => ({
     set({ customFoods })
   },
 
+  // Custom exercises live in the settings bag: a short list that didn't
+  // justify a new IndexedDB store (and the schema migration that comes with it).
+  async addCustomExercise(input) {
+    const exercise: Exercise = { ...input, id: uid('ex-'), custom: true }
+    const customExercises = [...get().customExercises, exercise]
+    await repo.setSetting(CUSTOM_EXERCISES_KEY, customExercises)
+    exerciseRepo.setCustomExercises(customExercises)
+    set({ customExercises })
+    return exercise
+  },
+
+  async deleteCustomExercise(id) {
+    const customExercises = get().customExercises.filter((e) => e.id !== id)
+    await repo.setSetting(CUSTOM_EXERCISES_KEY, customExercises)
+    exerciseRepo.setCustomExercises(customExercises)
+    set({ customExercises })
+  },
+
   async saveCustomMeal(name, type, items) {
     const meal: CustomMeal = {
       id: uid('cm-'), name: name.trim(), defaultType: type,
@@ -425,6 +449,7 @@ export const useStore = create<StoreState>((set, get) => ({
       water: s.water,
       steps: s.steps,
       customFoods: s.customFoods,
+      customExercises: s.customExercises,
       customMeals: s.customMeals,
       routines: s.routines,
       reminders: s.reminders,
@@ -434,7 +459,7 @@ export const useStore = create<StoreState>((set, get) => ({
   async importData(json) {
     const data = JSON.parse(json) as Partial<{
       profile: UserProfile; meals: Meal[]; workouts: Workout[]; weights: WeightEntry[]
-      water: WaterEntry[]; steps: StepEntry[]; customFoods: Food[]
+      water: WaterEntry[]; steps: StepEntry[]; customFoods: Food[]; customExercises: Exercise[]
       customMeals: CustomMeal[]; routines: WorkoutRoutine[]; reminders: Reminder[]
     }>
     if (!data || typeof data !== 'object') throw new Error('That file is not a FitTrack export.')
@@ -447,6 +472,7 @@ export const useStore = create<StoreState>((set, get) => ({
     for (const w of data.water ?? []) await repo.saveWater(w)
     for (const s of data.steps ?? []) await repo.saveSteps(s)
     for (const f of data.customFoods ?? []) await repo.saveCustomFood(f)
+    if (data.customExercises?.length) await repo.setSetting(CUSTOM_EXERCISES_KEY, data.customExercises)
     for (const m of data.customMeals ?? []) await repo.saveCustomMeal(m)
     for (const r of data.routines ?? []) await repo.saveRoutine(r)
     if (data.reminders?.length) await repo.saveReminders(data.reminders)
@@ -458,9 +484,10 @@ export const useStore = create<StoreState>((set, get) => ({
     await repo.clearAll()
     set({
       profile: null, meals: [], workouts: [], weights: [], water: [], steps: [],
-      customFoods: [], customMeals: [], routines: [], reminders: [], frequentFoodIds: [],
+      customFoods: [], customExercises: [], customMeals: [], routines: [], reminders: [], frequentFoodIds: [],
     })
     foodRepo.setCustomFoods([])
+    exerciseRepo.setCustomExercises([])
     await get().hydrate()
   },
 }))
@@ -565,12 +592,13 @@ async function doHydrate(
   try {
     const [
       profile, meals, workouts, weights, water, steps,
-      customFoods, customMeals, routines, storedReminders,
+      customFoods, customMeals, routines, storedReminders, storedExercises,
     ] = await Promise.all([
       repo.getProfile(), repo.getAllMeals(), repo.getAllWorkouts(), repo.getWeights(),
       repo.getAllWater(), repo.getSteps(), repo.getCustomFoods(), repo.getCustomMeals(),
-      repo.getRoutines(), repo.getReminders(),
+      repo.getRoutines(), repo.getReminders(), repo.getSetting<Exercise[]>(CUSTOM_EXERCISES_KEY),
     ])
+    const customExercises = storedExercises ?? []
 
     // First run: materialise the default reminder set so Settings has rows.
     // Any duplicate kinds from an earlier bad write are collapsed here too.
@@ -584,12 +612,13 @@ async function doHydrate(
     reminders = sortReminders(reminders)
 
     foodRepo.setCustomFoods(customFoods)
+    exerciseRepo.setCustomExercises(customExercises)
 
     set({
       status: 'ready',
       profile: profile ? withDefaults(profile) : null,
       meals, workouts, weights, water, steps,
-      customFoods, customMeals, routines, reminders,
+      customFoods, customExercises, customMeals, routines, reminders,
       frequentFoodIds: rankFrequentFoods(meals),
     })
 
