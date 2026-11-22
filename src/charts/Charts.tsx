@@ -62,11 +62,30 @@ function Tooltip({ children }: { children: ReactNode }) {
 
 // ── Bar chart ───────────────────────────────────────────────────────────────
 
+/**
+ * How a bar relates to the target line.
+ *
+ * - `reach` goals (protein, fibre): getting to the line is the aim, so a bar
+ *   that crosses it is `met` and one that falls short is `below`.
+ * - `limit` goals (calories, carbs, fat): the line is a ceiling, so crossing it
+ *   is `over`; anything up to it is fine.
+ */
+export type TargetGoal = 'reach' | 'limit'
+export type TargetStatus = 'met' | 'below' | 'over' | 'none'
+
+export function targetStatus(value: number, target: number | undefined, goal: TargetGoal): TargetStatus {
+  if (target === undefined || !(target > 0) || !(value > 0)) return 'none'
+  if (goal === 'reach') return value >= target ? 'met' : 'below'
+  return value > target ? 'over' : 'none'
+}
+
 export function BarChart({
-  points, target, height = 172, color = 'brand', unit = '', showEveryNth,
+  points, target, goal = 'limit', height = 172, color = 'brand', unit = '', showEveryNth,
 }: {
   points: Point[]
   target?: number
+  /** What the target line means; see `targetStatus`. */
+  goal?: TargetGoal
   height?: number
   color?: string
   unit?: string
@@ -102,6 +121,16 @@ export function BarChart({
         )}
       </svg>
 
+      {/* Target value, so the dashed line reads as "your daily need". */}
+      {target !== undefined && target > 0 && target <= max && (
+        <span
+          className="absolute text-[10px] font-semibold text-brand tabular-nums bg-surface/80 px-1 rounded"
+          style={{ right: PAD.right, top: PAD.top + plotH * (1 - target / max) - 15 }}
+        >
+          {goal === 'reach' ? 'Need ' : 'Target '}{Math.round(target).toLocaleString()}{unit}
+        </span>
+      )}
+
       {/* Y labels */}
       <div
         className="absolute left-0 flex flex-col justify-between text-[10px] text-faint tabular-nums"
@@ -120,7 +149,7 @@ export function BarChart({
         {points.map((p, i) => {
           const h = p.empty || p.value <= 0 ? 0 : Math.max(2, (p.value / max) * plotH)
           const isActive = active === i
-          const over = target !== undefined && p.value > target
+          const status = p.empty ? 'none' : targetStatus(p.value, target, goal)
           return (
             <button
               key={`${p.label}-${i}`}
@@ -128,10 +157,15 @@ export function BarChart({
               onClick={() => setActive(isActive ? null : i)}
               onMouseEnter={() => setActive(i)}
               onMouseLeave={() => setActive(null)}
-              aria-label={`${p.label}: ${p.empty ? 'no data' : `${Math.round(p.value)}${unit}`}`}
+              aria-label={`${p.label}: ${p.empty ? 'no data' : `${Math.round(p.value)}${unit}`}${
+                status === 'met' ? ', target reached' : status === 'below' ? ', below target' : status === 'over' ? ', over target' : ''}`}
             >
               {isActive && !p.empty && (
-                <Tooltip>{p.label} · {Math.round(p.value).toLocaleString()}{unit}</Tooltip>
+                <Tooltip>
+                  {p.label} · {Math.round(p.value).toLocaleString()}{unit}
+                  {status === 'met' && ' ✓'}
+                  {status === 'below' && target ? ` · ${Math.round(target - p.value)}${unit} short` : ''}
+                </Tooltip>
               )}
               <div
                 className="w-full rounded-t-[3px] transition-all duration-500"
@@ -139,8 +173,10 @@ export function BarChart({
                   height: h,
                   background: p.empty
                     ? 'rgb(var(--c-line))'
-                    : `rgb(var(--c-${over && target ? 'burn' : color}))`,
-                  opacity: active === null || isActive ? 1 : 0.55,
+                    : `rgb(var(--c-${status === 'over' ? 'burn' : color}))`,
+                  // Short of a `reach` target: same colour, faded, so the
+                  // bars that crossed the line stand out.
+                  opacity: (status === 'below' ? 0.35 : 1) * (active === null || isActive ? 1 : 0.55),
                 }}
               />
             </button>

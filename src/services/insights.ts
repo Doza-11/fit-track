@@ -188,6 +188,8 @@ export interface PeriodStats {
   avgProtein: number
   avgCarbs: number
   avgFat: number
+  avgFiber: number
+  avgSugar: number
   avgSteps: number
   avgBurned: number
   workouts: number
@@ -209,6 +211,8 @@ export function calculatePeriodStats(
     avgProtein: Math.round(avgOf(loggedDays, (d) => d.macros.protein)),
     avgCarbs: Math.round(avgOf(loggedDays, (d) => d.macros.carbs)),
     avgFat: Math.round(avgOf(loggedDays, (d) => d.macros.fat)),
+    avgFiber: Math.round(avgOf(loggedDays, (d) => d.macros.fiber)),
+    avgSugar: Math.round(avgOf(loggedDays, (d) => d.macros.sugar)),
     avgSteps: Math.round(avgOf(days, (d) => d.steps)),
     avgBurned: Math.round(avgOf(days, (d) => d.caloriesBurned)),
     workouts: workouts.length,

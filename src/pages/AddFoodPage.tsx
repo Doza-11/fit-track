@@ -14,6 +14,7 @@ import {
   Stepper, toast,
 } from '@/components/ui'
 import { ChevronLeft, PlusIcon, SearchIcon, TrashIcon } from '@/components/icons'
+import { UsualMealCard } from '@/components/UsualMeal'
 import { FOOD_CATEGORY_LABELS, MEAL_ICONS, MEAL_LABELS, MEAL_ORDER } from '@/data/foods'
 import { EMPTY_NUTRIENTS, round, sumNutrients } from '@/utils/calculations'
 import { today } from '@/utils/date'
@@ -94,6 +95,8 @@ export function AddFoodPage() {
               aria-label="Search foods"
             />
           </div>
+
+          {query.length === 0 && <UsualMealCard type={mealType} date={date} />}
 
           {query.length === 0 && frequent.length > 0 && (
             <>
