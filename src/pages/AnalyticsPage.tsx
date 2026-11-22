@@ -5,12 +5,15 @@
  */
 import { useMemo, useState } from 'react'
 import { useStore, selectDailySummary } from '@/store/useStore'
-import { BarChart, ChartLegend, DonutChart, LineChart, type Point } from '@/charts/Charts'
+import {
+  BarChart, ChartLegend, DonutChart, LineChart, targetStatus, type Point, type TargetGoal,
+} from '@/charts/Charts'
 import { Card, EmptyState, Field, Screen, Sheet } from '@/components/ui'
 import { InfoIcon, SparkIcon } from '@/components/icons'
 import { calculatePeriodStats, generateInsights } from '@/services/insights'
 import {
   calculateWeightTrend, calorieAdherence, displayWeight, projectGoalDays, round, workoutSplit,
+  calculateFiberTarget,
 } from '@/utils/calculations'
 import {
   addDays, dateRange, daysBetween, formatDate, lastNDays, today,
@@ -191,6 +194,39 @@ function ChartCard({ title, note, children }: {
   )
 }
 
+/** A nutrient bar chart with its daily target line and a "days on target" count. */
+function NutrientChart({ title, color, goal, points, target, average, note, height }: {
+  title: string
+  color: string
+  goal: TargetGoal
+  points: Point[]
+  target?: number
+  average: number
+  note: string
+  height?: number
+}) {
+  const logged = points.filter((p) => !p.empty)
+  const count = (status: string) => logged.filter((p) => targetStatus(p.value, target, goal) === status).length
+  const met = count('met')
+  const over = count('over')
+
+  return (
+    <ChartCard title={title} note={note}>
+      <BarChart points={points} target={target} goal={goal} color={color} unit=" g" height={height} />
+      <div className="flex justify-between gap-3 mt-3 pt-3 border-t border-line/70 text-[12px]">
+        <span className="text-muted">Average <strong className="text-ink">{average}g</strong>{target ? ` of ${target}g` : ''}</span>
+        {target && logged.length > 0 ? (
+          goal === 'reach' ? (
+            <span className="text-muted">Need met on <strong className="text-ink">{met}</strong> of {logged.length} days</span>
+          ) : (
+            <span className="text-muted">Over on <strong className="text-ink">{over}</strong> of {logged.length} days</span>
+          )
+        ) : null}
+      </div>
+    </ChartCard>
+  )
+}
+
 type Days = ReturnType<typeof selectDailySummary>[]
 type LabelFn = (d: LocalDate) => string
 type Stats = ReturnType<typeof calculatePeriodStats>
@@ -202,7 +238,9 @@ function NutritionTab({ days, labelFor, stats }: { days: Days; labelFor: LabelFn
   const target = days[0]?.calorieTarget ?? 0
   const adherence = calorieAdherence(days)
 
-  const macroPoints = (key: 'protein' | 'carbs' | 'fat'): Point[] =>
+  const fiberTarget = calculateFiberTarget(target)
+  const macroTargets = days[0]?.macroTargets ?? { protein: 0, carbs: 0, fat: 0 }
+  const macroPoints = (key: 'protein' | 'carbs' | 'fat' | 'fiber' | 'sugar'): Point[] =>
     days.map((d) => ({
       label: labelFor(d.date), value: Math.round(d.macros[key]), empty: d.caloriesConsumed === 0,
     }))
@@ -230,26 +268,35 @@ function NutritionTab({ days, labelFor, stats }: { days: Days; labelFor: LabelFn
         </div>
       </ChartCard>
 
-      <ChartCard title="Protein">
-        <BarChart points={macroPoints('protein')} color="protein" unit=" g" />
-        <p className="text-[12px] text-muted mt-2">
-          Average <strong className="text-ink">{stats.avgProtein}g</strong> per logged day
-        </p>
-      </ChartCard>
+      <NutrientChart
+        title="Protein" color="protein" goal="reach" points={macroPoints('protein')}
+        target={macroTargets.protein} average={stats.avgProtein}
+        note={`Dashed line is your daily protein need of ${macroTargets.protein}g. Full-colour bars crossed it; faded bars fell short.`}
+      />
 
-      <ChartCard title="Carbs">
-        <BarChart points={macroPoints('carbs')} color="carbs" unit=" g" height={140} />
-        <p className="text-[12px] text-muted mt-2">
-          Average <strong className="text-ink">{stats.avgCarbs}g</strong> per logged day
-        </p>
-      </ChartCard>
+      <NutrientChart
+        title="Fiber" color="success" goal="reach" points={macroPoints('fiber')}
+        target={fiberTarget} average={stats.avgFiber} height={140}
+        note={`Guide: about ${fiberTarget}g a day (14g per 1,000 kcal of your calorie target).`}
+      />
 
-      <ChartCard title="Fat">
-        <BarChart points={macroPoints('fat')} color="fat" unit=" g" height={140} />
-        <p className="text-[12px] text-muted mt-2">
-          Average <strong className="text-ink">{stats.avgFat}g</strong> per logged day
-        </p>
-      </ChartCard>
+      <NutrientChart
+        title="Carbs" color="carbs" goal="limit" points={macroPoints('carbs')}
+        target={macroTargets.carbs} average={stats.avgCarbs} height={140}
+        note="Dashed line is your daily carb target. Bars above it are shown in orange."
+      />
+
+      <NutrientChart
+        title="Fat" color="fat" goal="limit" points={macroPoints('fat')}
+        target={macroTargets.fat} average={stats.avgFat} height={140}
+        note="Dashed line is your daily fat target. Bars above it are shown in orange."
+      />
+
+      <NutrientChart
+        title="Sugar" color="insight" goal="limit" points={macroPoints('sugar')}
+        average={stats.avgSugar} height={120}
+        note="Total sugars, including the natural sugar in fruit and milk, so there is no fixed target line."
+      />
 
       {totalKcal > 0 && (
         <ChartCard title="Where your calories come from">

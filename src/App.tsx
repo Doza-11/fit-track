@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { useStore } from '@/store/useStore'
 import { startNotificationScheduler } from '@/services/notificationScheduler'
+import { startCoach } from '@/services/coachRuntime'
 import { ensureNotificationPermission } from '@/services/notifications'
 import { useAndroidBackButton } from '@/services/native/androidBackButton'
 import { useTheme } from '@/hooks/useTheme'
@@ -43,6 +44,12 @@ export default function App() {
     if (status !== 'ready') return
     return startNotificationScheduler()
   }, [status])
+
+  // The coach reacts to meals being logged and checks in at its set times.
+  useEffect(() => {
+    if (status !== 'ready' || !profile) return
+    return startCoach()
+  }, [status, profile?.id])
 
   // Ask for notification permission once the user is past onboarding. Without
   // this the reminders could never be delivered on Android 13+, since nothing

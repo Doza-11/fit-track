@@ -46,6 +46,11 @@ const KCAL_PER_KG = 7700
 /** Never recommend a target below these floors. */
 const MIN_CALORIES: Record<Sex, number> = { male: 1500, female: 1200 }
 
+/** The safe daily intake floor this app never recommends going below. */
+export function minimumCalories(sex: Sex): number {
+  return MIN_CALORIES[sex]
+}
+
 export function clamp(n: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, n))
 }
@@ -191,6 +196,21 @@ export function calculateMacroProgress(
       remaining: Math.round(t - c),
     }
   })
+}
+
+/**
+ * Daily fibre target: 14 g per 1,000 kcal (US Dietary Guidelines' adequate
+ * intake), kept within 25–40 g so very low or high calorie targets still get a
+ * sensible figure. A guide, not a prescription.
+ */
+export function calculateFiberTarget(calorieTarget: number): number {
+  if (!(calorieTarget > 0)) return 25
+  return Math.round(clamp((calorieTarget / 1000) * 14, 25, 40))
+}
+
+/** Protein relative to body weight (g/kg), the figure strength coaching uses. */
+export function proteinPerKg(proteinG: number, weightKg: number): number {
+  return weightKg > 0 ? round(proteinG / weightKg, 1) : 0
 }
 
 // ── Nutrition scaling ───────────────────────────────────────────────────────

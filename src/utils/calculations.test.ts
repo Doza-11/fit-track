@@ -6,6 +6,7 @@ import {
   scaleNutrients, sumNutrients, estimate1RM, workoutVolume, calculateStreak,
   percentChange, projectGoalDays, cmToFtIn, ftInToCm, kgToLb, lbToKg, bmi,
   calorieAdherence, recommendTargets, defaultWeeklyRate, EMPTY_NUTRIENTS,
+  calculateFiberTarget, proteinPerKg,
 } from './calculations'
 import type { Exercise, Nutrients, WeightEntry, WorkoutExercise, DailySummary } from '@/types'
 
@@ -375,5 +376,26 @@ describe('recommendTargets', () => {
 
   it('gives maintain a zero default rate', () => {
     expect(defaultWeeklyRate('maintain')).toBe(0)
+  })
+})
+
+describe('calculateFiberTarget', () => {
+  it('scales at 14 g per 1,000 kcal', () => {
+    expect(calculateFiberTarget(2000)).toBe(28)
+    expect(calculateFiberTarget(2500)).toBe(35)
+  })
+  it('stays within 25–40 g', () => {
+    expect(calculateFiberTarget(1200)).toBe(25)
+    expect(calculateFiberTarget(4000)).toBe(40)
+    expect(calculateFiberTarget(0)).toBe(25)
+  })
+})
+
+describe('proteinPerKg', () => {
+  it('divides by body weight to one decimal', () => {
+    expect(proteinPerKg(120, 75)).toBe(1.6)
+  })
+  it('returns 0 without a weight', () => {
+    expect(proteinPerKg(120, 0)).toBe(0)
   })
 })

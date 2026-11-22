@@ -11,6 +11,7 @@ import {
 import { QuickAddSheet } from '@/components/QuickAddSheet'
 import { useScrollDirection } from '@/hooks/useScrollDirection'
 import { ToastHost } from '@/components/ui'
+import { CoachBanner } from '@/components/Coach'
 
 const TABS = [
   { to: '/', label: 'Home', Icon: HomeIcon, end: true },
@@ -44,6 +45,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
       </main>
 
       <ToastHost />
+      <CoachBanner />
 
       {/*
         The add button floats above the bar rather than occupying a tab slot,

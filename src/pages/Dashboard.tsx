@@ -23,6 +23,9 @@ import {
 } from '@/utils/calculations'
 import { greeting, lastNDays, today } from '@/utils/date'
 import { buildContext, generateDailySuggestion } from '@/services/suggestions'
+import { UsualMealStrip, useMealShortcut } from '@/components/UsualMeal'
+import { NutrientExtras } from '@/components/NutrientExtras'
+import { CoachCard, useCoachFeed } from '@/components/Coach'
 import type { MealType } from '@/types'
 
 export function Dashboard() {
@@ -32,6 +35,7 @@ export function Dashboard() {
   const summary = useStore((s) => selectDailySummary(s, date))
   const state = useStore()
   const { openWater, openWeight, openSteps } = useLogSheets()
+  const coachMessage = useCoachFeed()
 
   // Recent history feeds the "higher than usual" comparisons and the streak.
   const { recentAvgCalories, recentAvgSteps, streak } = useMemo(() => {
@@ -107,10 +111,21 @@ export function Dashboard() {
             </div>
           ))}
         </div>
+
+        <div className="w-full mt-3.5 pt-3.5 border-t border-line/70">
+          <NutrientExtras
+            nutrients={summary.macros}
+            calorieTarget={summary.calorieTarget}
+            proteinTarget={summary.macroTargets.protein}
+            weightKg={summary.weightKg ?? profile.weightKg}
+          />
+        </div>
       </Card>
 
-      {/* ── Suggestion ── */}
-      {suggestion && (
+      {/* ── Coach, else the general suggestion ──
+          Only one is shown, so the two can never give conflicting advice. */}
+      {coachMessage && <CoachCard message={coachMessage} />}
+      {!coachMessage && suggestion && (
         <Card
           className={`mb-3 animate-pop-in ${
             suggestion.tone === 'positive' ? 'border-achievement/35 bg-achievement/[0.07]' : ''
@@ -251,11 +266,13 @@ function MealRow({ type, date }: { type: MealType; date: string }) {
   const meal = useStore((s) => s.meals.find((m) => m.date === date && m.type === type))
   const calories = Math.round(meal?.items.reduce((s, i) => s + i.nutrients.calories, 0) ?? 0)
   const count = meal?.items.length ?? 0
+  const shortcut = useMealShortcut(type, date)
 
-  return (
+  const row = (
     <button
       onClick={() => navigate(`/food/add?meal=${type}`)}
-      className="card w-full flex items-center gap-3 text-left py-3 active:scale-[0.99] transition focusable"
+      className={`w-full flex items-center gap-3 text-left py-3 transition focusable
+        ${shortcut ? 'px-4 active:bg-raised' : 'card active:scale-[0.99]'}`}
     >
       <span className="text-[20px] w-8 text-center shrink-0" aria-hidden="true">{MEAL_ICONS[type]}</span>
       <span className="flex-1 min-w-0">
@@ -272,5 +289,14 @@ function MealRow({ type, date }: { type: MealType; date: string }) {
         <ChevronRight size={18} className="text-faint shrink-0" />
       )}
     </button>
+  )
+
+  if (!shortcut) return row
+  // An unlogged slot with a known habit gets a one-tap strip beneath it.
+  return (
+    <div className="card p-0 overflow-hidden">
+      {row}
+      <UsualMealStrip shortcut={shortcut} date={date} />
+    </div>
   )
 }

@@ -18,8 +18,11 @@ import { MEAL_ICONS, MEAL_LABELS } from '@/data/foods'
 import {
   addDays, formatDate, fromLocalDate, relativeDayLabel, today, toLocalDate,
 } from '@/utils/date'
-import { calculateMacroProgress, displayWeight, round } from '@/utils/calculations'
-import type { LocalDate } from '@/types'
+import {
+  calculateFiberTarget, calculateMacroProgress, displayWeight, round, sumNutrients,
+} from '@/utils/calculations'
+import { NutrientExtras } from '@/components/NutrientExtras'
+import type { DailySummary, LocalDate } from '@/types'
 
 const WEEKDAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
 
@@ -130,8 +133,85 @@ export function HistoryPage() {
         </div>
       </Card>
 
+      <MonthSummary title={monthLabel} summaries={[...summaries.values()].filter((s) => s.date <= today())} />
+
       <DayDetail date={selected} />
     </Screen>
+  )
+}
+
+/**
+ * Month totals. Averages count only days with food logged, so a forgotten day
+ * doesn't drag the average down to look like under-eating.
+ */
+function MonthSummary({ title, summaries }: { title: string; summaries: DailySummary[] }) {
+  const foodDays = summaries.filter((s) => s.caloriesConsumed > 0)
+  if (foodDays.length === 0 && !summaries.some((s) => s.workouts.length > 0)) return null
+
+  const avgKcal = foodDays.length
+    ? Math.round(foodDays.reduce((t, s) => t + s.caloriesConsumed, 0) / foodDays.length)
+    : 0
+  const onTarget = foodDays.filter((s) =>
+    s.calorieTarget > 0 && Math.abs(s.caloriesConsumed / s.calorieTarget - 1) <= 0.1).length
+  const workouts = summaries.flatMap((s) => s.workouts.filter((w) => !w.inProgress))
+  const workoutMin = workouts.reduce((t, w) => t + w.durationMin, 0)
+  const workoutKcal = workouts.reduce((t, w) => t + w.caloriesBurned, 0)
+
+  const avg = (key: 'protein' | 'carbs' | 'fat' | 'fiber' | 'sugar') => foodDays.length
+    ? Math.round(foodDays.reduce((t, s) => t + s.macros[key], 0) / foodDays.length)
+    : 0
+  const proteinDays = foodDays.filter((s) =>
+    s.macroTargets.protein > 0 && s.macros.protein >= s.macroTargets.protein * 0.9).length
+  const fiberTarget = foodDays.length ? calculateFiberTarget(foodDays[0].calorieTarget) : 0
+  const nutrients: Array<[label: string, value: number, color: string, target?: number]> = [
+    ['Protein', avg('protein'), 'protein', foodDays[0]?.macroTargets.protein],
+    ['Carbs', avg('carbs'), 'carbs', foodDays[0]?.macroTargets.carbs],
+    ['Fat', avg('fat'), 'fat', foodDays[0]?.macroTargets.fat],
+    ['Fiber', avg('fiber'), 'success', fiberTarget],
+    ['Sugar', avg('sugar'), 'insight'],
+  ]
+
+  return (
+    <Card className="mb-4">
+      <h2 className="text-[13px] font-semibold text-muted mb-2.5">{title} summary</h2>
+      <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+        <MonthStat label="Avg intake / day" value={avgKcal ? `${avgKcal.toLocaleString()} kcal` : '—'} />
+        <MonthStat label="Days with food logged" value={`${foodDays.length}`} sub={onTarget ? `${onTarget} within 10% of target` : undefined} />
+        <MonthStat label="Workouts" value={`${workouts.length}`} sub={workoutMin ? `${workoutMin} min total` : undefined} />
+        <MonthStat label="Burned in workouts" value={workoutKcal ? `~${workoutKcal.toLocaleString()} kcal` : '—'} sub="estimate" />
+      </div>
+
+      {foodDays.length > 0 && (
+        <div className="mt-3.5 pt-3 border-t border-line/70">
+          <p className="text-[11.5px] text-faint mb-2">Average per logged day</p>
+          <div className="space-y-1.5">
+            {nutrients.map(([label, value, color, target]) => (
+              <div key={label} className="flex items-center gap-2.5">
+                <span className="w-2 h-2 rounded-full shrink-0" style={{ background: `rgb(var(--c-${color}))` }} />
+                <span className="text-[12.5px] text-muted flex-1">{label}</span>
+                <span className="text-[13px] font-semibold tabular-nums">
+                  {value}g
+                  {target ? <span className="text-faint font-normal"> / {target}g</span> : null}
+                </span>
+              </div>
+            ))}
+          </div>
+          <p className="text-[11.5px] text-faint mt-2.5">
+            Protein target reached on <strong className="text-ink">{proteinDays}</strong> of {foodDays.length} day{foodDays.length === 1 ? '' : 's'}
+          </p>
+        </div>
+      )}
+    </Card>
+  )
+}
+
+function MonthStat({ label, value, sub }: { label: string; value: string; sub?: string }) {
+  return (
+    <div>
+      <span className="block text-[11.5px] text-faint">{label}</span>
+      <span className="block text-[16px] font-bold tabular-nums">{value}</span>
+      {sub && <span className="block text-[11px] text-faint">{sub}</span>}
+    </div>
   )
 }
 
@@ -208,6 +288,15 @@ function DayDetail({ date }: { date: LocalDate }) {
                 </div>
               ))}
             </div>
+            <div className="mt-3">
+              <NutrientExtras
+                compact
+                nutrients={summary.macros}
+                calorieTarget={summary.calorieTarget}
+                proteinTarget={summary.macroTargets.protein}
+                weightKg={summary.weightKg ?? profile.weightKg}
+              />
+            </div>
             <div className="grid grid-cols-4 gap-2 mt-3.5 pt-3 border-t border-line/70">
               <MiniStat icon={<FlameIcon size={14} />} label="Burned" value={`${summary.caloriesBurned}`} />
               <MiniStat icon={<StepsIcon size={14} />} label="Steps" value={summary.steps.toLocaleString()} onClick={() => openSteps(date)} />
@@ -221,12 +310,18 @@ function DayDetail({ date }: { date: LocalDate }) {
           </Card>
 
           {summary.meals.filter((m) => m.items.length > 0).map((meal) => {
-            const kcal = Math.round(meal.items.reduce((s, i) => s + i.nutrients.calories, 0))
+            const n = sumNutrients(meal.items.map((i) => i.nutrients))
+            const kcal = Math.round(n.calories)
             return (
               <Card key={meal.id} className="mb-2 p-0 overflow-hidden">
                 <div className="flex items-center gap-2.5 px-4 py-2.5">
                   <span className="text-[17px]" aria-hidden="true">{MEAL_ICONS[meal.type]}</span>
-                  <span className="flex-1 text-[14px] font-semibold">{MEAL_LABELS[meal.type]}</span>
+                  <span className="flex-1 min-w-0">
+                    <span className="block text-[14px] font-semibold">{MEAL_LABELS[meal.type]}</span>
+                    <span className="block text-[11px] text-faint tabular-nums">
+                      P {Math.round(n.protein)}g · C {Math.round(n.carbs)}g · F {Math.round(n.fat)}g · Fiber {Math.round(n.fiber)}g
+                    </span>
+                  </span>
                   <span className="text-[14px] font-bold tabular-nums">{kcal}</span>
                   <button
                     onClick={() => setConfirm({ kind: 'meal', id: meal.id, name: MEAL_LABELS[meal.type] })}
