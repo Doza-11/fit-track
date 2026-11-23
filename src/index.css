@@ -151,3 +151,22 @@
     @apply outline-none ring-2 ring-brand ring-offset-2 ring-offset-bg;
   }
 }
+
+/* ── Web / desktop ─────────────────────────────────────────────────────────
+   Phones keep room for the bottom tab bar and floating + button; desktop
+   (lg, ≥1024px) has a sidebar instead, so the extra padding goes. */
+.app-main {
+  padding-bottom: calc(env(safe-area-inset-bottom) + 8.5rem);
+}
+@media (min-width: 1024px) {
+  .app-main { padding-bottom: 3rem; }
+}
+
+/* Mouse users get hover feedback on tappable cards and chips; touch screens
+   don't, so a tap never leaves a "stuck" hover state behind. */
+@media (hover: hover) and (pointer: fine) {
+  button.card:hover, a.card:hover { background-color: rgb(var(--c-raised)); }
+  .chip-off:hover { color: rgb(var(--c-ink)); background-color: rgb(var(--c-line)); }
+  .btn-primary:hover { filter: brightness(1.08); }
+  .btn-ghost:hover { background-color: rgb(var(--c-raised)); }
+}

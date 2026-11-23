@@ -1,8 +1,13 @@
-name: Deploy PWA to GitHub Pages
+name: Deploy web app to GitHub Pages
 
-# Publishes the web/PWA build so it can be opened on any phone — including
-# iPhones, where "Add to Home Screen" is the only free way to install the app.
-# The Android APK is built separately and is not affected by this workflow.
+# Publishes the web/PWA build so it can be used in any browser — on a laptop
+# with the desktop layout, or on a phone, where "Add to Home Screen" installs
+# it. The Android APK is built separately and is not affected by this workflow.
+#
+# The build is pushed to the `gh-pages` branch, which is what the repository's
+# Pages setting serves ("Deploy from a branch → gh-pages / root"). Publishing
+# that way works with the existing setting; the earlier deploy-pages action
+# needed the source switched to "GitHub Actions" and failed on every run.
 
 on:
   push:
@@ -10,9 +15,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write
 
 # Never let two deploys race each other.
 concurrency:
@@ -20,7 +23,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build:
+  deploy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -37,22 +40,19 @@ jobs:
 
       - run: npm run build
 
-      # `enablement` lets the workflow turn Pages on itself, so a fresh clone
-      # needs no manual visit to repo Settings.
-      - uses: actions/configure-pages@v5
-        with:
-          enablement: true
-
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: dist
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@v4
+      # Plain git rather than a third-party action: the branch only ever holds
+      # the latest build, so it is replaced wholesale on each deploy.
+      - name: Publish dist/ to gh-pages
+        working-directory: dist
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Serve files as-is (no Jekyll processing of the build output).
+          touch .nojekyll
+          git init -q -b gh-pages
+          git add -A
+          git -c user.name="github-actions[bot]" \
+              -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+              commit -q -m "deploy: ${GITHUB_SHA::7}"
+          git push -f -q "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.git" gh-pages
+          echo "Published ${GITHUB_SHA::7} to gh-pages"

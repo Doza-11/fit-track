@@ -27,6 +27,14 @@ npm run build      # production build into dist/
 | History | Month calendar with per-day detail, editing and deletion |
 | Profile | Personal info, targets, units, theme, weight history, export/import, reset |
 
+## Web
+
+The same build runs in any browser, with a desktop layout from 1024 px wide:
+a sidebar, multi-column pages, and dialogs instead of bottom sheets. Every
+push to `main` tests the code and publishes it to GitHub Pages. It can also be
+hosted anywhere that serves static files (`npm run build` → `dist/`). See
+[docs/WEB.md](docs/WEB.md).
+
 ## Android & iOS
 
 The same codebase ships as an Android APK and an iOS app via Capacitor — a packaging layer,

@@ -21,11 +21,18 @@ export function SectionTitle({ children, action }: { children: ReactNode; action
   )
 }
 
-export function Screen({ title, subtitle, right, children }: {
+/** Max width on desktop: forms read best narrow, dashboards use the room. */
+const SCREEN_WIDTH = {
+  narrow: 'lg:max-w-[760px] lg:mx-auto',
+  wide: 'lg:max-w-[1180px] lg:mx-auto',
+} as const
+
+export function Screen({ title, subtitle, right, children, width = 'narrow' }: {
   title?: string; subtitle?: string; right?: ReactNode; children: ReactNode
+  width?: keyof typeof SCREEN_WIDTH
 }) {
   return (
-    <div className="px-4 pt-3">
+    <div className={`px-4 pt-3 ${SCREEN_WIDTH[width]}`}>
       {(title || right) && (
         <header className="flex items-start justify-between gap-3 mb-4">
           <div className="min-w-0">
@@ -163,7 +170,9 @@ export function StatTile({ icon, label, value, sub, onClick, accent }: {
 
 /**
  * Modal bottom sheet — the primary surface for every add/edit flow, since it
- * keeps controls within thumb reach on a phone.
+ * keeps controls within thumb reach on a phone. On a desktop browser (lg) the
+ * same component becomes a centred dialog: a sheet rising from the bottom of a
+ * wide monitor is a long way from the mouse and reads as a mobile port.
  */
 export function Sheet({ open, onClose, title, children, footer, fullHeight }: {
   open: boolean
@@ -191,7 +200,10 @@ export function Sheet({ open, onClose, title, children, footer, fullHeight }: {
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col justify-end" role="dialog" aria-modal="true" aria-label={title}>
+    <div
+      className="fixed inset-0 z-50 flex flex-col justify-end lg:justify-center lg:items-center lg:p-6"
+      role="dialog" aria-modal="true" aria-label={title}
+    >
       <button
         className="absolute inset-0 bg-black/55 animate-fade-in"
         onClick={onClose}
@@ -200,23 +212,24 @@ export function Sheet({ open, onClose, title, children, footer, fullHeight }: {
       <div
         ref={panelRef}
         className={`relative bg-surface rounded-t-3xl shadow-2xl animate-slide-up flex flex-col
-                    ${fullHeight ? 'h-[92vh]' : 'max-h-[88vh]'}`}
+                    lg:w-full lg:max-w-[540px] lg:rounded-3xl lg:border lg:border-line lg:animate-pop-in
+                    ${fullHeight ? 'h-[92vh] lg:h-[80vh]' : 'max-h-[88vh] lg:max-h-[85vh]'}`}
       >
-        <div className="shrink-0 pt-2.5 pb-1 flex justify-center">
+        <div className="shrink-0 pt-2.5 pb-1 flex justify-center lg:hidden">
           <div className="w-10 h-1.5 rounded-full bg-line" />
         </div>
         {title && (
-          <div className="shrink-0 flex items-center justify-between px-4 pb-3 pt-1">
+          <div className="shrink-0 flex items-center justify-between px-4 pb-3 pt-1 lg:px-6 lg:pt-5">
             <h2 className="text-[17px] font-semibold">{title}</h2>
             <button onClick={onClose} className="tap -mr-2 text-muted focusable rounded-lg" aria-label="Close">
               <CloseIcon size={22} />
             </button>
           </div>
         )}
-        <div className="flex-1 overflow-y-auto overscroll-contain px-4 pb-2">{children}</div>
+        <div className="flex-1 overflow-y-auto overscroll-contain px-4 pb-2 lg:px-6">{children}</div>
         {footer && (
           <div
-            className="shrink-0 px-4 pt-3 border-t border-line bg-surface rounded-b-none"
+            className="shrink-0 px-4 pt-3 border-t border-line bg-surface rounded-b-none lg:px-6 lg:rounded-b-3xl"
             style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}
           >
             {footer}
@@ -466,7 +479,7 @@ export function ToastHost() {
 
   return (
     <div
-      className="fixed left-0 right-0 z-[60] px-4 flex flex-col items-center gap-2 pointer-events-none"
+      className="fixed left-0 right-0 lg:left-64 z-[60] px-4 flex flex-col items-center gap-2 pointer-events-none"
       style={{ bottom: 'calc(env(safe-area-inset-bottom) + 5.5rem)' }}
       role="status"
       aria-live="polite"

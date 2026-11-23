@@ -63,7 +63,7 @@ export function Dashboard() {
   const unit = profile.units.weight
 
   return (
-    <div className="px-4 pt-4">
+    <div className="px-4 pt-4 lg:max-w-[1180px] lg:mx-auto">
       <header className="flex items-start justify-between mb-5">
         <div>
           <p className="text-[13px] text-muted">{greeting()} 👋</p>
@@ -80,6 +80,10 @@ export function Dashboard() {
         </button>
       </header>
 
+      {/* Desktop: today's numbers on the left, meals and workout on the right.
+          On a phone the two columns simply stack in this order. */}
+      <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] lg:gap-6 lg:items-start">
+        <div>
       {/* ── Calorie headline ── */}
       <Card className="mb-3 flex flex-col items-center pt-5 pb-4">
         <ProgressRing value={ratio} gradient={CALORIE_RING_GRADIENT}>
@@ -171,6 +175,9 @@ export function Dashboard() {
         />
       </div>
 
+        </div>
+
+        <div>
       {/* ── Meals ── */}
       <SectionTitle
         action={
@@ -257,6 +264,8 @@ export function Dashboard() {
           Treat it as a rough guide rather than a measurement.
         </span>
       </EstimateNote>
+        </div>
+      </div>
     </div>
   )
 }

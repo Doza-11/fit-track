@@ -64,7 +64,7 @@ export function AnalyticsPage() {
     dates.length <= 7 ? formatDate(d, 'weekday') : formatDate(d, 'short').replace(' ', ' ')
 
   return (
-    <Screen title="Analytics">
+    <Screen title="Analytics" width="wide">
       {/* Period selector */}
       <div className="flex gap-1.5 overflow-x-auto no-scrollbar mb-4 -mx-4 px-4">
         {(Object.keys(PERIOD_LABELS) as Period[]).map((p) => (
@@ -95,7 +95,7 @@ export function AnalyticsPage() {
                 ? `${formatDate(custom.from)} – ${formatDate(custom.to)}`
                 : `Last ${PERIOD_LABELS[period]}`}
             </h2>
-            <div className="grid grid-cols-2 gap-y-3.5 gap-x-3">
+            <div className="grid grid-cols-2 lg:grid-cols-6 gap-y-3.5 gap-x-3">
               <Stat label="Avg calories" value={stats.avgCalories.toLocaleString()} unit="kcal" />
               <Stat label="Avg protein" value={stats.avgProtein} unit="g" />
               <Stat label="Workouts" value={stats.workouts} unit={`· ${stats.workoutMinutes} min`} />
@@ -114,7 +114,7 @@ export function AnalyticsPage() {
             </div>
           </Card>
 
-          <div className="flex gap-1.5 mb-4">
+          <div className="flex gap-1.5 mb-4 lg:max-w-md">
             {([
               ['nutrition', 'Nutrition'], ['activity', 'Activity'], ['weight', 'Weight'],
             ] as Array<[Tab, string]>).map(([t, label]) => (
@@ -128,9 +128,12 @@ export function AnalyticsPage() {
             ))}
           </div>
 
-          {tab === 'nutrition' && <NutritionTab days={days} labelFor={labelFor} stats={stats} />}
-          {tab === 'activity' && <ActivityTab days={days} labelFor={labelFor} stats={stats} />}
-          {tab === 'weight' && <WeightTab dates={dates} labelFor={labelFor} />}
+          {/* Charts sit two-up on desktop. */}
+          <div className="lg:grid lg:grid-cols-2 lg:gap-x-4 lg:items-start">
+            {tab === 'nutrition' && <NutritionTab days={days} labelFor={labelFor} stats={stats} />}
+            {tab === 'activity' && <ActivityTab days={days} labelFor={labelFor} stats={stats} />}
+            {tab === 'weight' && <WeightTab dates={dates} labelFor={labelFor} />}
+          </div>
 
           {/* Insights */}
           {insights.length > 0 && (
@@ -139,7 +142,7 @@ export function AnalyticsPage() {
                 <SparkIcon size={17} className="text-insight" />
                 <h2 className="text-[15px] font-semibold">Insights</h2>
               </div>
-              <div className="space-y-2">
+              <div className="space-y-2 lg:space-y-0 lg:grid lg:grid-cols-2 lg:gap-3">
                 {insights.map((i) => (
                   <Card
                     key={i.id}
