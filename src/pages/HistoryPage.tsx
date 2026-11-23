@@ -50,7 +50,10 @@ export function HistoryPage() {
     || (month.getFullYear() === new Date().getFullYear() && month.getMonth() >= new Date().getMonth())
 
   return (
-    <Screen title="History">
+    <Screen title="History" width="wide">
+      {/* Desktop: calendar and month on the left, the selected day beside it. */}
+      <div className="lg:grid lg:grid-cols-2 lg:gap-6 lg:items-start">
+        <div>
       <Card className="mb-4">
         <div className="flex items-center justify-between mb-3">
           <button
@@ -141,7 +144,11 @@ export function HistoryPage() {
         summaries={[...summaries.values()].filter((s) => s.date <= today())}
       />
 
-      <DayDetail date={selected} />
+        </div>
+        <div>
+          <DayDetail date={selected} />
+        </div>
+      </div>
     </Screen>
   )
 }

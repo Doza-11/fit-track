@@ -36,7 +36,7 @@ export function CoachBanner() {
   if (!shown || onDashboard) return null
   return (
     <div
-      className="fixed inset-x-0 z-[55] px-4 flex justify-center pointer-events-none"
+      className="fixed inset-x-0 lg:left-64 z-[55] px-4 flex justify-center pointer-events-none"
       style={{ bottom: 'calc(env(safe-area-inset-bottom) + 9rem)' }}
       role="status"
       aria-live="polite"

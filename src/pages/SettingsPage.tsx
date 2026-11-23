@@ -43,7 +43,7 @@ export function SettingsPage() {
   const navigate = useNavigate()
 
   return (
-    <div className="px-4 pt-3">
+    <div className="px-4 pt-3 lg:max-w-[760px] lg:mx-auto">
       <header className="flex items-center gap-2 mb-5">
         <button onClick={() => navigate('/profile')} className="tap -ml-2.5 text-muted focusable rounded-lg" aria-label="Back">
           <ChevronLeft size={24} />

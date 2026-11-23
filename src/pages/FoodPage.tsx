@@ -40,7 +40,7 @@ export function FoodPage() {
   }, [summary.meals])
 
   return (
-    <Screen>
+    <Screen width="wide">
       {/* Date navigator */}
       <div className="flex items-center justify-between mb-4">
         <button onClick={() => shift(-1)} className="tap -ml-2 text-muted focusable rounded-lg" aria-label="Previous day">
@@ -109,7 +109,7 @@ export function FoodPage() {
         />
       )}
 
-      <div className="space-y-3">
+      <div className="space-y-3 lg:space-y-0 lg:grid lg:grid-cols-2 lg:gap-4 lg:items-start">
         {visibleMeals.map(({ type, meal }) => (
           <MealCard
             key={type}
